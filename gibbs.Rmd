@@ -1,0 +1,329 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## The Gibbs Sampler
+
+Suppose we want to generate data from a random vector $X_1, .., X_n$ with joint density $f(x_1,..,x_n)$. Unfortunately we know f only up to a constant, that is 
+
+$$
+\begin{aligned}
+&f(x_1,..,x_n)=c \cdot u(x_1,..,x_n)\\
+&\int_{-\infty}^{\infty} u(x_1,..,x_n)=1
+\end{aligned}
+$$
+
+Now the conditional distribution of 
+
+$$
+X_k|X_1=x_1, .,X_{k-1}=x_{k-1}, ,X_{k+1}=x_{k+1},..,X_n=x_n
+$$
+
+is given by
+
+![](graphs/mark221.png)
+
+so the density of the conditional distribution function does not depend on c. 
+  
+The idea of the Gibbs sampler is to generate a sequence of simulated values of 
+
+$$
+f_k(x_k|x_1,..,x_{k-1},x_{k+1},..,x_n)
+$$
+
+with k going from 1 to n and then starting all over again. 
+
+**Example** Say we want to generate from 
+
+$$
+(X,Y) \sim N(\pmb{\mu}, \pmb{\Sigma})
+$$
+
+where $\pmb{\mu}=(\mu_x,\mu_y)$ and   
+
+![](graphs/mark219.png)
+  
+Recall   
+
+![](graphs/mark220.png)
+
+```{r}
+gibbsMN <- function(n=1e4, mu=c(0, 0), sigma=c(1, 1), rho=0){
+  x <- rep(0, n)
+  y <- rep(0, n)
+  for(i in 2:n){
+    x[i] <- rnorm(1, mu[1]+rho*sigma[1]/sigma[2]*(y[i-1]-mu[2]),
+                  sigma[1]*sqrt(1-rho^2))
+    y[i] <- rnorm(1, mu[2]+rho*sigma[2]/sigma[1]*(x[i]-mu[1]),
+                  sigma[2]*sqrt(1-rho^2))
+      }
+  cbind(x, y)[-c(1:1000), ]  
+}
+xy <- gibbsMN()
+plot(xy, pch=".")
+round(c(apply(xy,2,mean), apply(xy,2,sd), cor(xy)[1, 2]), 3)
+xy <- gibbsMN(mu=c(1,2), sigma = c(1,3), rho = 0.9)
+plot(xy, pch=".")
+round(c(apply(xy,2,mean), apply(xy,2,sd), cor(xy)[1, 2]), 3)
+```
+
+It can be shown that the Gibbs sampler is actually a special case of the Metropolis-Hastings algorithm: 
+
+Let $\pmb{X}=(X_1, .., X_n)$ be a r.v. with probability mass function $f(\pmb{x})$ that need only be specified up to a multiplicative constant, and suppose that we want to generate a r.v. whose distribution is that of $\pmb{X}$. That is we want to generate a r.v. with density $f(\pmb{x})= c \cdot u(\pmb{x})$  where $u$ is known but $c$ is not. Using the Gibbs sampler assumes that for any $i$ and values $x_j$, $j \ne i$, we can generate a r.v. $X$ with density
+
+$$
+P(X=x) = P(X_i=x|X_j=x_j,j\ne i)
+$$
+
+It operates the Metropolis-Hastings algorithm on a Markov chain with states $\pmb{x} = (x_1, .., x_n)$ and with transition probabilities defined as follows: 
+
+Whenever the present state is $\pmb{x}$, a coordinate that is equally likely to be any of the $1,..,n$ is chosen. If coordinate $i$ is chosen, then a r.v. X whose probability mass function is as above is generated and if X=x the state 
+$$
+\pmb{y}=(x_1, .., x_{i-1}, x, x~{i+1},..,x_n)
+$$
+is considered as the next candidate state. In other words, with $\pmb{x}$ and $\pmb{y}$ given the Gibbs sampler uses the Metropolis-Hastings algorithm with
+
+![](graphs/mark24.png)
+
+Because we want the limiting distribution to be p the vector $\pmb{y}$ is then accepted as the new state with probability
+
+![](graphs/mark25.png)
+
+So in the Gibbs sampler the candidate state is **always** accepted as the next state!
+
+**Example** Here is one of the standard models used in the actuarial sciences (Insurance) to model the number of claims that might have to be paid on a certain type of policy: 
+
+![](graphs/mark222.png)
+
+The idea is this: there is a random number $N$ of policies of the same type (car insurance, health ins, etc.) Obviously $N>0$ otherwise it's to boring. Each insurance has a probability $Y$ to be claimed, so $X$ is the number of policies that get claimed.
+
+We want to generate data for $X$. In order to use the Gibbs sampler we need all the conditional distributions. We already have
+
+$$
+X|Y=y,N=n \sim \text{Bin}(n,y)
+$$
+
+It can be shown that
+
+$$
+\begin{aligned}
+&Y|X=x,N=n \sim \text{Beta}(x+\alpha, n-x+\beta)\\
+&M|X=x,Y=y \sim \text{Pois}(\lambda(1-y))\\
+&N=M+x
+\end{aligned}
+$$
+
+So the Gibbs sampler is as follows:
+
+```{r}
+gibbsIns <- function(n=1e4, alpha=1, beta=100, lambda=1000){
+  X <- rep(0, n)
+  Y <- rep(0, n)
+  M <- rep(0, n)
+  N <- rep(0, n)
+  Y[1] <- alpha/(alpha+beta)
+  X[1]<-Y[1]*lambda
+  M[1] <- lambda
+  N[1] <- ifelse(M[1]>0,M[1],1)
+  for(i in 2:n){
+    X[i] <- rbinom(1, N[i-1], Y[i-1])
+    Y[i] <- rbeta(1, X[i]+alpha, N[i-1]-X[i]+beta)
+    M[i] <- rpois(1, lambda*(1-Y[i]))
+    N[i] <- M[i]+X[i]
+  }
+  X[-c(1:1000)]
+}
+hist(gibbsIns(), main="")
+```
+
+**Example :** One of the main uses of the Gibbs sampler is in Bayesian analysis. Say we have $X\sim \text{Bin}(n,p)$ and $p \sim \text{Beta}(\alpha, \beta )$ and we want a sample from the posterior distribution $p|X$. Then the joint distribution of X and p is the beta-binomial distribution given by
+
+![](graphs/mark28.png)
+
+To use the Gibbs sampler we need the conditional distributions of $X|p$ and $p|X$:
+
+$$
+\begin{aligned}
+&X|p \sim \text{Bin}(n,p)\\
+&p|x \sim \text{Beta}(x+ \alpha, n-x+ \beta)
+\end{aligned}
+$$  
+
+so the Gibbs sampler is as follows:
+
+```{r}
+gibbsBin <- function(x, n, B=1e4, alpha=1, beta=1, lambda=1){
+  p <- rep(0.5, B)
+  X <- rep(0, B)
+  for(i in 2:B) {
+    X[i] <- rbinom(1, n, p[i-1])
+    p[i] <- rbeta(1, x+alpha, n-x+beta)
+  }
+  p[-c(1:1000)]
+}  
+```
+ 
+As a specific example, say in a sample of 100 employees of a company we have 37 women and 63 men, and we want to find a 90% interval estimate for the percentage of female employees. We have no prior knowledge of this company, so we will use U[0,1] (=beta(1,1)) as our prior. 
+
+```{r}
+p.x <- gibbsBin(x=37, n=100)
+hist(p.x, 100, main="")
+round(quantile(p.x, c(0.025, 0.975)), 3)
+```
+
+  
+Notice that the interval is very similar to the standard frequentist solution (Clopper-Pearson 1934 intervals)
+
+```{r}
+round(binom.test(x=37, n=100)$conf.int, 3)
+```
+
+Historically Bayesian analysis suffered from the problem that prior distributions had to be chosen so it was possible to calculate the posterior distribution (one popular choice are so-called conjugate priors, where the posterior distribution is the same as the prior one, except for the parameters) even though those priors were not a good description of our "prior belief". The Gibbs sampler allows us to be much more free in our choice of prior. 
+
+**Example** 
+
+say we want to generate data from the random vector $(X,Y,Z)$ with density $f(x,y,z)=K(x+y+z)$, $0<x<y<z<1$.
+
+To use the Gibbs Sampler we need all the conditional distributions:
+
+$$
+\begin{aligned}
+&f_{Y,Z}(y,z)=\int_{0}^{y}K(x+y+z)dx= \\ 
+&K(\frac{1}{2}x^{2}+xy+xz|_{0}^{y}= \\ 
+&K(\frac{1}{2}y^{2}+y^{2}+yz)= \\ 
+&K(\frac{3}{2}y^{2}+yz) \\ 
+&f_{X|Y=y,Z=z}(x|y,z)=\frac{K(x+y+z)}{K(\frac{3}{2}y^{2}+yz)}=\\
+&\frac{x+y+z}{\frac{3}{2}y^{2}+yz} \\ 
+&0<x<y
+\end{aligned}
+$$  
+
+Notice that the constant K vanishes in the conditional distribution. This will always happen, so we will ignore it from now on.
+
+Next we find
+
+$$
+\begin{aligned}
+&f_{X,Z}(x,z)=\int_{x}^{z}x+y+zdy= \\ 
+&xy+\frac{1}{2}y^{2}+yz|_{x}^{z}= \\ 
+&xz+\frac{1}{2}z^{2}+z^{2}-x^{2}-\frac{1}{2}x^{2}-xz= \\ 
+&\frac{3}{2}z^{2}-\frac{3}{2}x^{2} \\ 
+&f_{Y|X=x,Z=z}(y|x,z)=\frac{x+y+z}{\frac{3}{2}z^{2}-\frac{3}{2}x^{2}} \\
+&x<y<z
+\end{aligned}
+$$  
+
+and finally
+
+$$
+\begin{aligned}
+&f_{X,Y}(x,y)=\int_{y}^{1}x+y+zdz= \\ 
+&xz+yz+\frac{1}{2}z^{2}|_{y}^{1}= \\ 
+&x+y+\frac{1}{2}-xy-y^{2}-\frac{1}{2}y^{2}= \\ 
+&x+y+\frac{1}{2}-xy-\frac{3}{2}y^{2} \\ 
+&f_{Z|X=x,Y=y}(z|x,y)=\frac{x+y+z}{x+y+\frac{1}{2}-xy-\frac{3}{2}y^{2}}
+\end{aligned}
+$$  
+
+Now that we have the marginals we need to be able to generate data from them. To do this notice that all three are linear functions of the form
+
+$$
+g(x)=b(a+x) \text{ for } u<x<v
+$$
+Now
+
+$$
+\begin{aligned}
+&G(x)=\int_{u}^{x}b(a+t)dt= \\ 
+&b(at+\frac{1}{2}t^{2}|_{u}^{x}= \\ 
+&b(ax+\frac{1}{2}x^{2}-au-\frac{1}{2}u^{2})
+\end{aligned}
+$$
+now we have $G(v)=1$ and so 
+$$
+b=\frac{1}{a(v-u)+\frac{1}{2}(v^{2}-u^{2})}
+$$
+
+and we can find the inverse of G with
+
+$$
+\begin{aligned}
+&G(x)=y\\
+&b(ax+\frac{1}{2}x^{2}-au-\frac{1}{2}u^{2})=y\\
+&\frac{1}{2}x^{2}+ax-au-\frac{1}{2}u^{2}-\frac{y}{b}=0\\
+&x_{1,2}=-a\pm \sqrt{a^{2}+2(au+\frac{1}{2}u^{2}+\frac{y}{b})}
+\end{aligned}
+$$  
+na now if $U \sim U[0,1]$ we have $G^{-1}(U)$ has this linear distribution.
+
+Let's do a quick check to see whether this works (and that it is the + in the quadratic formula!)
+
+```{r}
+u <- 0.25
+v <- 0.75
+a <- 1
+b <- 1/(a*(v-u)+(v^2-u^2)/2)
+x <- (-a)+sqrt(a^2+2*(a*u+u^2/2+runif(1e4)/b))
+hist(x, 50, freq=FALSE, main="")
+curve(b*(a+x), u,v, add=TRUE, lwd=2)
+```
+
+
+and now we can implement the Gibbs sampler:
+```{r}
+n <- 1e4
+x <- rep(0, n)
+y <- rep(1/3, n)
+z <- rep(2/3, n)
+for(i in 2:n) {
+  u <- 0
+  v <- y[i-1]
+  a <- y[i-1]+z[i-1]
+  b <- 1/(a*(v-u)+(v^2-u^2)/2)
+  x[i] <- (-a)+sqrt(a^2+2*(a*u+u^2/2+runif(1)/b))
+  u <- x[i]
+  v <- z[i-1]
+  a <- x[i]+z[i-1]
+  b <- 1/(a*(v-u)+(v^2-u^2)/2)
+  y[i] <- (-a)+sqrt(a^2+2*(a*u+u^2/2+runif(1)/b))
+  u <- y[i]
+  v <- 1
+  a <- x[i]+y[i]
+  b <- 1/(a*(v-u)+(v^2-u^2)/2)
+  z[i] <- (-a)+sqrt(a^2+2*(a*u+u^2/2+runif(1)/b))
+}
+
+```
+Does this do the job? Let's check the marginal of $X$:
+
+$$
+\begin{aligned}
+&f(x,z)=\frac{3}{2}(z^{2}-x^{2}) \\ 
+&0<x<z<1 \\ 
+&f(x)=\int_{x}^{1}\frac{3}{2}(z^{2}-x^{2})dz= \\ 
+&\frac{1}{2}z^{3}-\frac{3}{2}x^{2}z|_{x}^{1}= \\ 
+&\frac{1}{2}-\frac{3}{2}x^{2}+x^{3} \\ 
+&\int_{0}^{1}\frac{1}{2}-\frac{3}{2}x^{2}+x^{3}dx= \\ 
+&\frac{1}{2}x-\frac{1}{2}x^{3}+\frac{1}{4}x^{4}|_{0}^{1}= \\ 
+&\frac{1}{2}-\frac{1}{2}+\frac{1}{4}=\frac{1}{4}
+&\end{aligned}
+$$
+
+```{r}
+hist(x, 50, freq=FALSE, main="")
+curve(4*(x^3-3/2*x^2+1/2), 0, 1, lwd=2, add=TRUE)
+```
+
+Looks good!

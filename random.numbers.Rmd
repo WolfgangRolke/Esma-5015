@@ -1,0 +1,357 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Random Numbers and Simulation
+
+### Random Numbers
+
+Everything starts with generating X~1~, X~2~, .. iid U[0,1]. These are simply called random numbers. There are some ways to get these:
+
+- random number tables  
+- numbers taken from things like the exact (computer) time  
+- quantum random number generators  
+- ...
+
+The R package *random* has the routine *randomNumbers* which gets random numbers from a web site which generates them based on (truly random) atmospheric phenomena.
+
+```{r message=FALSE}
+require(random)
+randomNumbers(20, 0, 100)
+```
+
+Most of the time we will use *pseudo-random numbers*, that is numbers that are not actually random but are indistinguishable from those. In R this is done with
+
+```{r}
+runif(5)
+runif(5, 100, 300)
+```
+
+
+### Standard Probability Distributions
+
+Not surprisingly many standard distributions are part of base R. For each the format is
+
+-  dname = density  
+-  pname = cumulative distribution function  
+-  rname = random generation  
+-  qname = quantile function  
+
+**Note** we will use the term *density* for both discrete and continuous random variable.
+
+#### **Example**  Poisson distribution
+
+We have $X \sim \text{Pois}(\lambda)$ if 
+
+$$
+P(X=x)=\frac{\lambda^x}{x!}e^{-\lambda}\text{, }x=0,1, ...
+$$
+
+```{r}
+# density
+dpois(c(0, 8, 12, 20), lambda=10)
+10^c(0, 8, 12, 20)/factorial(c(0, 8, 12, 20))*exp(-10)
+# cumulative distribution function
+ppois(c(0, 8, 12, 20), 10)
+# random generation
+rpois(5, 10)
+# quantiles
+qpois(1:4/5, 10)
+```
+
+Here is a list of the distributions included with base R:
+
+-  beta distribution: dbeta.
+
+-  binomial (including Bernoulli) distribution: dbinom.
+
+-  Cauchy distribution: dcauchy.
+
+-  chi-squared distribution: dchisq.
+
+-  exponential distribution: dexp.
+
+-  F distribution: df.
+
+-  gamma distribution: dgamma.
+
+-  geometric distribution: dgeom. 
+
+-  hypergeometric distribution: dhyper.
+
+-  log-normal distribution: dlnorm.
+
+-  multinomial distribution: dmultinom.
+
+-  negative binomial distribution: dnbinom.
+
+-  normal distribution: dnorm.
+
+-  Poisson distribution: dpois.
+
+-  Student's t distribution: dt.
+
+-  uniform distribution: dunif.
+
+-  Weibull distribution: dweibull. 
+
+`r hl()$hr()`
+
+With some of these a bit of caution is needed. For example, the usual textbook definition of the geometric random variable is the number of tries in a sequence of independent Bernoulli trials until a success. This means that the density is defined as
+
+$$
+P(X=x)=p(1-p)^{x-1}\text{, }x=1,2,..
+$$
+R however defines it as the number of failures until the first success, and so it uses
+
+$$
+P(X^*=x)=\text{dgeom}(x, p)=p(1-p)^x\text{, }x=0,1,2,..
+$$
+Of course this is easy to fix. If you want to generate the "usual" geometric do
+
+```{r}
+x <- rgeom(10, 0.4) + 1
+x
+```
+
+if you want to find the probabilities or cdf:
+
+```{r}
+round(dgeom(x-1, 0.4), 4)
+round(0.4*(1-0.4)^(x-1), 4)
+```
+
+Another example is the Gamma random variable. Here most textbooks use the definition
+
+$$
+f(x; \alpha, \beta)= \frac1{\Gamma{(\alpha)}\beta^\alpha}x^{\alpha-1}e^{-x/\beta}
+$$
+but R uses
+
+
+$$
+f^*(x; \alpha, \beta)= \frac{\beta^\alpha}{\Gamma{(\alpha)}}x^{\alpha-1}e^{-\beta x}
+$$
+
+```{r}
+dgamma(1.2, 0.5, 2)
+2^0.5/gamma(0.5)*1.2^(0.5-1)*exp(-2*1.2)
+```
+
+Again, it is easy to *re-parametrize*:
+
+```{r}
+dgamma(1.2, 0.5, 1/(1/2))
+```
+
+
+### Other Variates
+
+if you need to generate  random variates from a distribution that is not part of base R you should first try to find a package that includes it.
+
+#### **Example** multivariate normal
+
+there are actually several packages, the most commonly used one is *mvtnorm*
+
+```{r}
+library(mvtnorm)
+x <- rmvnorm(1000, 
+             mean = c(0, 1), 
+             sigma = matrix(c(1, 0.8, 0.8, 2), 2, 2))
+plot(x, 
+     pch=20,
+     xlab = expression(x[1]),
+     ylab = expression(x[2]))
+```
+
+sigma is the variance-covariance matrix, so in the above we have
+
+$$
+\begin{aligned}
+&\rho  = \textit{Cor}(X, Y) =\\
+&\frac{\textit{Cov}(X, Y)}{\sqrt{\textit{Var}(X)\textit{Var}(Y)}}    = \\
+&\frac{0.8}{\sqrt{1*2}}    = 0.566\\
+\end{aligned}
+$$
+
+```{r}
+round(c(var(x[, 1]),
+        var(x[, 2]),
+        cor(x[, 1], x[, 2])), 3)
+```
+
+`r hl()$hr()`
+
+### Simulation
+
+In a *simulation* we attempt to generate data just like what we might see in a real-live experiment, except that we control all the details. The we carry out some calculations on that artificial data, and we repeat this many times. Here are some examples:
+
+#### **Example** 
+
+When rolling a fair die 5 times, what is the probability of no sixes? Of no more than one six?
+
+```{r}
+B <- 10000 # number of simulation runs
+num.sixes <- rep(0, B) # to store results
+for(i in 1:B) {
+  x <- sample(1:6, size=5, replace=TRUE) # roll 5 dice
+  num.sixes[i] <- length(x[x==6]) # how many sixes?
+}
+# Probability of no sixes
+length(num.sixes[num.sixes==0])/B
+# Probability of no more than one sixes
+length(num.sixes[num.sixes<=1])/B
+```
+
+Of course one can do this also analytically:
+
+$$
+\begin{aligned}
+&P(\text{no sixes}) = P(\text{no six on any die})  = \\
+&P(\text{no six on first die } \cap \text{ .. } \cap \text{ no six on fifth die})    = \\
+&\prod_{i=1}^5 P(\text{no six on }i^{th} \text{die})    = (\frac56 )^5 = 0.402
+\end{aligned}
+$$
+
+but already the second one is a bit harder to do analytically but not via simulation.
+
+`r hl()$hr()`
+
+One issue we have with a simulation is the *simulation error*, namely that the simulation will always yield a slightly different answer.
+
+#### **Example** 
+Say we have $X, Y, Z \sim N(0, 1)$ and set $M=\max \left\{|X|,|Y|, |Z|\right\}$. What is the mean and standard deviation of $M$?
+
+```{r}
+B <- 10000
+x <- matrix(abs(rnorm(3*B)), ncol=3)
+M <- apply(x, 1, max)
+hist(M, 50, main="")
+round(c(mean(M), sd(M)), 3)
+```
+
+#### **Example** Symmetric Random Walk in R
+Let  $P(Z_i=-1) = P(Z_i=1) = \frac12$ and $X_n = \sum_{i=1}^n Z_i$. Let A>0 some integer. Let's write a routine that finds the median number of steps the walk takes until it hits either -A or A.
+
+One issue with simulations of *stochastic processes* is that in general they are very slow. Here I will use a little trick: I will generate part of the process, and then check whether the event of interest has already happened. 
+
+```{r echo=FALSE}
+set.seed(Sys.time())
+```
+
+
+```{r cache=TRUE}
+first.hit <- function(A) {
+  B <- 10000
+  num.steps <- rep(0, B)
+  for(i in 1:B) {
+    x <- 0
+    k <- 0
+    repeat {
+      z <- sample(c(-1, 1), size=1000, replace=TRUE)
+      x <- x + cumsum(z)
+      if(max(abs(x))>=A) break
+      x <- x[1000]
+      k <- k+1000
+    }
+    k <- k+seq_along(x)[abs(x)>=A][1]
+    num.steps[i] <- k
+  }  
+  median(num.steps)
+}
+first.hit(100)
+```
+
+#### **Example** 
+The following you find in any basic stats course: A $100(1-\alpha)$% confidence interval for the success probability in a sequence of n Bernoulli trials is given by
+
+$$
+\hat{p} \pm z_{\alpha/2}\sqrt{\hat{p}(1-\hat{p})/n}
+$$
+where $\hat{p}$ is the proportion of successes. This method is supposed to work if n is at least 50.
+
+Let's do a simulation to test this method.
+
+```{r}
+ci.prop.sim <- function(p, n, conf.level=95, B=1e4) {
+  z <- qnorm(1-(1-conf.level/100)/2)
+  bad <- 0
+  for(i in 1:B) {
+    x <- sample(0:1, size=n, replace = TRUE, prob=c(1-p, p))
+    phat <- sum(x)/n
+    if(phat - z*sqrt(phat*(1-phat)/n)>p) bad<-bad+1
+    if(phat + z*sqrt(phat*(1-phat)/n)<p) bad<-bad+1
+  }
+  bad/B
+}
+```
+
+```{r cache=TRUE}
+ci.prop.sim(0.5, 100)
+```
+
+and that is not so bad.
+
+But
+
+```{r cache=TRUE}
+ci.prop.sim(0.1, 50)
+```
+
+and that is very bad indeed!
+
+Soon we will consider a method that is guaranteed to give intervals with correct coverage, no matter what p and n are.
+
+#### **Example**: Simultaneous Inference
+
+There is a famous (infamous?) case of three psychiatrists who studied a sample of schizophrenic persons and a sample of non schizophrenic persons. They measured 77 variables for each subject - religion, family background, childhood experiences etc. Their goal was to discover what distinguishes persons who later become schizophrenic. Using their data they ran 77 hypothesis tests of the significance of the differences between the two groups of subjects, and found 2 significant at the 2% level.They immediately published their findings.
+
+What’s wrong here? Remember, if you run a hypothesis test at the 2% level you expect to reject the null hypothesis of no relationship 2% of the time, but 2% of 77 is about 1 or 2, so just by random fluctuations they could (should?) have rejected that many null hypotheses! This is not to say that the variables they found to be different between the two groups were not really different, only that their method did not proof that.
+
+In its general form this is known as the problem of simultaneous inference and is one of the most difficult issues in Statistics today. One general solution of used is called *Bonferroni's method*. The idea is the following:
+
+Let's assume we carry out $k$ hypothesis tests. All tests are done at $\alpha$ significance level and all the tests are all independent. Then the probability that at least one test rejects the null hypothesis although all null are true is given by
+
+$$
+\begin{aligned}
+&\alpha^* = P(\text{at least one null rejected | all null true})    = \\
+&1- P(\text{none of the nulls rejected | all null true})    = \\
+&1- \prod_{i=1}^k P(\text{ith null is not rejected | ith null true})    = \\
+&1- \prod_{i=1}^k \left[1-P(\text{ith null is rejected | ith null true})\right]    = \\
+&1-\left[ 1-\alpha\right]^k = \\
+&1-\left[ 1-k\alpha + {{k}\choose{2}}\alpha^2-+..\right] \approx k\alpha \\
+\end{aligned}
+$$
+
+so if each individual test is done with $\alpha/k$, the *family-wise* error rate is the desired one.
+
+Let's do a simulation to see how that would work in the case of our psychiatrists experiments. There many details we don't know, so we have to make them up a bit:
+
+```{r cache=TRUE}
+sim.shiz <- function(m, n=50, B=1e3) {
+  counter <- matrix(0, B, 2)
+  for(i in 1:B) {
+    for(j in 1:77) {
+      pval <- t.test(rnorm(n), rnorm(n))$p.value
+      if(pval<0.02) counter[i, 1]<-1
+      if(pval<0.05/m) counter[i, 2]<-1
+    }
+  }
+  apply(counter, 2, sum)/B
+}
+sim.shiz(77)
+```
+
+This works fine here. The main problem in real life is that it is rarely true that these test are independent, and then all we can say is that the needed $\alpha$ is between $\alpha/k$ and $\alpha$.

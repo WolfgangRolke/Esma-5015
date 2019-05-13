@@ -1,0 +1,154 @@
+---
+header-includes: \usepackage{color} \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Probability
+
+## Introduction
+
+The probability of rain tomorrow is 0.3. What does that mean?
+
+We usually find probabilities in one of three ways:
+
+- empirically through many repetitions of an experiment - relative frequency interpretation  
+- through reasoning about outcomes etc. - classical interpretation  
+- by using our intuition and experience - subjective interpretation
+
+#### **Example** - coin tossing
+
+what is the probability of getting "heads" when tossing a fair coin?
+
+-  relative frequency interpretation: take a coin and flip it!
+the South African mathematician Jon Kerrich, while in a German POW camp during WWII tossed a coin 10000 times. Result 5067 heads, for a probability of 0.5067  
+-  classical interpretation:
+This experiment has two possible outcomes - heads and tails. Fair means they are equally likely, so p=P("heads")=P("tails")=0.5  
+-  subjective interpretation: I think it's 1/2.
+
+An **experiment** is a well-defined procedure that produces a set of outcomes. For example, "roll a die"; "randomly select a card from a standard 52-card deck"; "flip a coin" and "pick any moment in time between 10am and 12 am" are experiments. 
+
+A **sample space** is the set of outcomes from an experiment. Thus, for "flip a coin" the sample space is {H, T}, for "roll a die" the sample space is {1, 2, 3, 4, 5, 6} and for "pick any moment in time between 10am and 12 am" the sample space is [10, 12]. 
+
+An **event** is a subset, say A, of a sample space S. For the experiment "roll a die", an event is "obtain a number less than 3". Here, the event is {1, 2}.
+
+If all the outcomes of a sample space S are equally likely and if A is an event, then the probability of A is:
+
+![](graphs/prob1.png)
+
+So, the probability of an event, say A, is the *ratio of success to total*.
+
+#### **Example**
+
+flipping a coin what is the probability of a heads? 
+ 
+The total number of outcomes is 2 and the number of ways to be successful is 1. Thus, P(heads) = 1/2. 
+ 
+#### **Example**
+
+consider randomly selecting a card from a standard 52-card deck: what is the probability of getting a king?
+
+the total number of outcomes is 52 and of these outcomes 4 would
+be successful. So, P(king) = 4/52.
+
+#### **Example** 
+
+What is the probability of a sum of 8 when rolling two fair dice?
+
+Solution 1: Sample space is
+
+```{r echo=FALSE}
+out <- matrix("", 6, 6)
+for(i in 1:6)
+  for(j in 1:6)
+    out[i,j] <- paste0("(", i, ", ", j, ")")
+kable.nice(out)
+```
+
+
+
+There are 5 pairs that have a sum of 8, so P(sum of 10)=5/36=0.1389
+
+Solution 2: The sum can be any number from 2 to 12, the sample space is {2,3,4,..,11,12}. There are 11 numbers in the sample space, one of them is 8, so P(sum of 10)=1/11=0.091
+
+Which is right?
+
+Let's do a simulation to see which answer is correct.
+use command "sample" to randomly pick an element from a set 
+
+args(sample) shows you the correct syntax of the "sample command
+
+sample(1:6, 2, TRUE) picks two numbers from 1 to 6 **with repetition**
+
+sum(sample(1:6, 2, TRUE)) finds their sum, just what we want
+
+```{r}
+z <- rep(0, 10000) #generates a vector of length 10000
+for(i in 1:10000) 
+  z[i] <- sum(sample(1:6, 2, TRUE)) #repeats our experiment 10000 times
+length(z[z==8])/10000 #finds the proportion of "8's" in z
+```
+
+But why is it right?
+
+### Fundamentals
+
+The definition above works well as long as S is finite but breaks down if S is infinite. Instead modern probability, like geometry, is built on a small set of basic rules called axioms, derived in the 1930's by Kolmogorov. They are:
+
+
+$$
+\begin{aligned}
+&\text{Axiom 1: }  0 \le P(A) \le 1 \\
+&\text{Axiom 2: }   P(S)   = 1\\
+&\text{Axiom 3: }   P( \cup_{i=1}^n A_i)   = \sum_{i=1}^n P(A_i)\\
+\end{aligned}
+$$
+
+
+if $A_1, ..., A_n$ are mutually exclusive
+
+**Example** : Derive the formula above (for a finite sample space) from these axioms.
+
+Solutions: say we have a sample space $S=\{e_1, ..., e_n\}$ and an event $A=\{e_{k_1}, ..., e_{k_m}\}$. Then: 
+
+![](graphs/prob3.png)
+### Some useful formulas
+
+**Complement**: $P(A) = 1 - P(A^c)$
+
+**Example** : A fair coin is tossed 5 times. What is the probability of at least one "Heads"?
+
+Sample Space S={(H,H,H,H,H), (H,H,H,H,T), ... , (T,T,T,T,T)}
+
+S has $2^5 = 32$ elements
+
+P(at least one "Heads") =  
+1 - P("No Heads") =  
+1 - P({(T,T,T,T,T)}) =  
+1 - 1/36 = 35/36
+
+**Addition Formula**: $P(A \cup B) = P(A)+P(B)-P(A \cap B)$
+
+#### **Example**
+
+We roll two fair dice. What is the probability of a sum of 5 or 8, or highest number on either die is a 3?
+
+Sample Space is above.
+
+Event A = {(1,4), (2,3), (3,2), (4,1), (2,6), (3,5), (4,4), (5,3), (6,2)}, n(A) = 9
+
+Event B = {(1,1), (1,2), (1,3), (2,1), (2,2), (2,3), (3,1), (3,2), (3,3)}, n(B) = 9
+
+Event $A\cap B = \{(2,3), (3,2)\}$, $n(A\cap B)=2$
+
+$P(A \cup B) = P(A)+P(B)-P(A \cap B)$ =  
+$9/36+9/36-2/36 = 16/36 = 4/9$

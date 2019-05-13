@@ -1,0 +1,165 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Some Special Methods
+
+
+### Exponential Distribution - General Inverse Method
+
+####**Example** 
+say $U\sim U[0, 1]$ and let $\lambda > 0$. Set $Y = -\lambda \log(U)$. Then
+
+$$
+F_Y(y)=P(Y<y)= \\ 
+P(- \lambda \log U <y)=\\
+P( \log U > -y/\lambda)=\\
+P( U > \exp \left\{ -y/\lambda \right\}  )=\\
+1-P( U < \exp \left\{ -y/\lambda \right\}  )=\\
+1- \exp \left\{ -y/\lambda \right\}  \\
+f_Y(y)=\frac{d}{dx}F_Y(y)= 1/\lambda \exp \left\{ -y/\lambda \right\}
+$$
+so
+
+$Y\sim \text{Exp}(1/\lambda)$
+
+This is actually a special case of a general method: 
+
+let X be a continuous r.v. with cdf F. Let F^-1^ be the **generalized** inverse of F, that is 
+
+$F^{-1}(y) = \inf \{x: F(x) \ge y\}$
+
+Note that if F is strictly increasing the generalized inverse is just the regular inverse, and that 
+
+F(F^-1^(x)) = x
+
+Now say we want to generate a r.v. X with cdf F. Let $U\sim U[0,1]$, then $X = F^{-1}(U)\sim F$ because
+
+![](graphs/gen21.png)
+
+Unfortunately the exponential is just about the only application of this method because it is one of the few r.v's with an explicit formula for the cdf.
+
+It is however possible to write a general routine to generate data from a continuous univariate distribution using this method as follows:
+
+say we want to generate data from a density f(x) on a finite interval [A, B]. First we need to find the cdf F, that is 
+
+$$
+F(x) = \int_A^x f(t) dt
+$$
+because this can not (in general) be done analytically we will find F on a fine grid of points numerically. We could use the R function integrate for that:
+
+```{r, eval=FALSE}
+m <- 1000 
+x <- seq( A, B, length = m)
+y <- rep(0, m)
+for( i in 1:m) 
+  y[i] <- integrate(f, A, [i])$value
+```
+
+alternatively (and much faster) we can use our own numerical integration routine:
+
+```{r, eval=FALSE}
+y <- f(x)
+F <- (x[2]-x[1])/6*cumsum((y[-1]+4*y[-2]+y[-3]))
+```
+
+which uses *Simpon's rule*.
+
+if f is not a proper density, that is if $\int_A^B f(t) dt \ne 1$, we can normalize it now very easily :
+
+F = F/F(m)
+
+If we need to evaluate F at an intermediate point we can use the R function approximate:
+
+*approx( x, F, xout = ...)$value*
+
+but to get the inverse function all we have to do is exchange x and F:
+
+```{r, eval=FALSE}
+approx(F, x, xout = ...)$value
+```
+
+and finally the generation of a random variate is done with
+
+```{r, eval=FALSE}
+approx(F, x, xout = runif(1))$value
+```
+
+All of this is done in the routine **rPIT**:
+
+```{r}
+rPIT <- function (n, fun, A, B, New = TRUE) {
+  if (New) {
+      m <- min(2 * n, 1000)
+      x <- seq(A, B, length = m)
+      y <- fun(x)
+      z <- (x[2]-x[1])/6*cumsum((y[-1]+4*y[-2]+y[-3]))
+      z <- z/max(z)
+      y <- c(0, z)
+      xyTmp <- cbind(x, y)
+      assign("xyTmp", xyTmp, pos = 1)
+  }
+  approx(xyTmp[, 2], xyTmp[, 1], runif(n))$y
+}
+```
+
+This routine has a lot of over-head, to generate just one variate we need to do 1000 function evaluations. On the other hand once we have found the F values we can store them, and from now on we all we need is the last line of the routine, so we get one variate for each call to runif! 
+
+`r hl()$hr()` 
+   
+The exponential has a relationship with some of the other r.v.s we have discussed and this can be used to generate some of them. For example  
+
+![](graphs/gen22.png)
+
+### Binomial Distribution
+
+Say we want to generate $X\sim Bin(n,p)$. Now we know that if 
+
+Y~1~,..,Y~n~ are iid Ber(p) 
+
+then 
+
+Y~1~+..+Y~n~ $\sim B(n,p)$
+
+so let 
+
+U~i~$\sim U[0,1]$, Y~i~ = I~(0,p)~(U~i~) and X = Y~1~ +..+ Y~n~, then
+
+$X\sim B(n, p)$
+
+### Normal Distribution (Box-Muller algorithm)
+
+Say U~1~ and U~2~ are iid U[0,1] and set
+
+![](graphs/gen23.png)
+
+then X and Y are independent standard normal r.v.s
+
+![](graphs/gen24.png)
+
+the Jacobian of this transform is:
+
+![](graphs/gen25.png)
+
+The problem with this algorithm is that it requires the computation of the sin and the cos functions. Here is a similar and much faster algorithm:
+
+1. generate U~1~ and U~2~ are iid U[0,1]  
+2. set V~1~ = 2U~1~ -1, V~2~ = 2U~2~ -1 and S =V~1~^2^ + V~2~^2^  
+3. If S>1, return to step 1  
+ otherwise set
+ 
+![](graphs/gen26.png)
+
+then X and Y are iid standard normal. (This is called the polar method)

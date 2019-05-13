@@ -1,0 +1,276 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Case Study: Bayesian Inference for a Normal Distribution
+
+Say we have a sample $\pmb{X}=(X_1, .., X_n)$ with $X_i \sim N(\mu, \sigma)$.
+
+For now we assume $\sigma$ is known. We want to find a $95\%$ Bayesian credible interval for $\mu$ with the prior distribution $\pi(\mu )$.
+
+$$
+\begin{aligned}
+&f(\mathbf{x},\mu )=\prod \frac{1}{\sqrt{2\pi \sigma^2}}\exp \left\{ -\frac{(x_{i}-\mu )^{2}}{2\sigma^2}\right\} \pi (\mu ) = \\ 
+&(2\pi \sigma^2)^{-n/2}\exp \left\{ -\frac{1}{2\sigma^2}\sum (x_{i}-\mu )^{2}\right\} \pi (\mu ) 
+\end{aligned}
+$$
+Now for the usual arithmetic:
+$$ 
+\begin{aligned}
+&\sum (x_{i}-\mu )^{2}=\\
+&\sum (x_{i}-\overline{x}+\overline{x}-\mu )^{2} =\\ 
+&\sum (x_{i}-\overline{x})^{2}+2\sum (x_{i}-\overline{x})(\overline{x}-\mu
+)+\sum (\overline{x}-\mu )^{2}= \\ 
+&\sum (x_{i}-\overline{x})^{2}+n(\overline{x}-\mu )^{2} 
+\end{aligned}
+$$
+so we have
+$$
+\begin{aligned}
+&f(\mathbf{x},\mu )=K\exp \left\{ -\frac{n}{2\sigma^2}(\overline{x}-\mu
+)^{2}\right\}\pi(\mu)  \\ 
+\end{aligned}
+$$
+and we see that inference for $\mu$ can be based on the sample mean.
+
+Let's first say we have $\pi(\mu)=1$, then the posterior distribution of $\mu|\mathbf{X=x}$ is found by
+
+$$
+\begin{aligned}
+&\pi_{\mu | \overline{X}=x} (\mu|x)=\frac{f(\mathbf{x},\mu )}{m(\mathbf{x})}\\
+&m(\mathbf{x})=\int_{-\infty }^{\infty }\sqrt{\frac{n}{2\pi \sigma^2}}\exp \left\{ -\frac{n}{2\sigma^2
+}(x-\mu )^{2}\right\} d\mu =\\
+&\int_{-\infty }^{\infty }\sqrt{\frac{n}{2\pi \sigma^2}}\exp \left\{ -\frac{n}{2\sigma^2
+}(\mu -x )^{2}\right\} d\mu =1\\
+&\pi_{\mu | \overline{X}=x} (\mu|x)=\sqrt{\frac{n}{2\pi \sigma^2}}\exp \left\{ -\frac{n}{2\sigma^2
+}(\mu -x )^{2}\right\}
+\end{aligned}
+$$
+
+and so $\mu | \overline{X}=x \sim N(x, 1/\sqrt n )$.
+
+As an example throughout this section consider the following data set:
+```{r}
+x.sample <-
+c(-7.2, -2.72, -2.61, -1.87, -1.84, -1.17, -0.89, -0.33, -0.07, 
+0.26, 0.32, 0.51, 0.71, 0.85, 0.89, 1, 1.16, 1.3, 1.84, 2.8, 
+3.08, 3.18, 3.53, 4.14, 4.15)
+n <- length(x.sample)
+```
+
+Let's say we know $\sigma =2$, then
+```{r}
+B <- 1e4
+sigma <- 2
+samplemean.x <- mean(x.sample)
+out <- round(samplemean.x + c(-1,1)*qnorm(0.95)*sigma/sqrt(n), 2)
+cat("Frequentist Confidence Interval:  (", out[1], 
+    " ," ,out[2],")\n")
+out <- round(qnorm(c(0.025, 0.975), 
+                   samplemean.x, sigma/sqrt(n)), 2)
+cat("Bayesian Credible Interval, exact calculation: (",
+    out[1], " ," ,out[2],")\n")
+sample.post <- rnorm(B, samplemean.x, sigma/sqrt(n))
+out <-round(quantile(sample.post, c(0.025, 0.975)), 2)
+cat("Bayesian Credible Interval, direct simulation: (",
+    out[1], " ," ,out[2],")\n")
+```
+Let's do the simulation using the Metropolis-Hastings algorithm. This means we want to sample from 
+
+$$
+g(\mu)=\exp(-\frac1{2\sigma^2}(\mu- \overline x)^2)
+$$
+let's use as a proposal distribution $q_{xy} \sim U[y-1,y+1]$, then we have
+```{r}
+fun <- function(old.mu, new.mu)
+  dnorm(new.mu, samplemean.x, sigma/sqrt(n))/dnorm(old.mu, samplemean.x, sigma/sqrt(n))
+mu.x <- rep(samplemean.x, B)
+for(i in 2:B) {
+  new.mu <- runif(1, mu.x[i-1]-1,mu.x[i-1]+1)
+  if(runif(1)<fun(mu.x[i-1], new.mu)) mu.x[i] <- new.mu
+  else mu.x[i] <- mu.x[i-1]
+}
+out <-round(quantile(mu.x[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Metropolis-Hastings: (", out[1], " ," ,out[2],")\n")
+```
+
+If we wanted to use the Gibbs sample, what would that mean? We again need the marginals, but in fact we already have them:
+
+$$
+\begin{aligned}
+&\overline{X}| \mu \sim N(\mu, \sigma/\sqrt n )\\
+&\mu | \overline{X}=x \sim N(x, \sigma/\sqrt n )
+\end{aligned}
+$$
+and now the simulation of the posterior can be done with:
+
+```{r}
+x.mu <- rep(1, B)
+mu.x <- rep(1, B)
+for(i in 2:B) {
+  mu.x[i] <- rnorm(1, samplemean.x, sigma/sqrt(n))
+  x.mu[i] <- rnorm(1, mu.x[i], sigma/sqrt(n))
+}
+out <- round(quantile(mu.x[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Gibbs Sampler: (", out[1], " ," ,out[2],")\n")
+```
+
+Now let's say we also know that $\mu >0$. How can we include that information in our analysis?
+
+For a Frequentist this is rather difficult (though not impossible).   For a Bayesian it is easy: all we need to do is use a prior that has support on the positive numbers, for example $\pi(\mu)=I_{(0, \infty)}(\mu)$. Now the joint distribution becomes
+
+$$
+f(\mathbf{x},\mu )=K\exp \left\{ -\frac{n}{2\sigma^2}(\overline{x}-\mu
+)^{2}\right\}I_{(0, \infty)}(\mu)
+$$
+
+Doing it analytically means finding the marginal:
+
+$$
+m(\mathbf{x})=\int_0^\infty K\exp \left\{ -\frac{n}{2\sigma^2}(\overline{x}-\mu
+)^{2}\right\}
+$$
+
+which is not possible, so we have to proceed numerically. For the cdf we could also use the *integrate* command. Here I do a simple numerical integration based on Riemann sums.
+
+```{r}
+m.x <- 1
+f <- function(mu) dnorm(mu, samplemean.x, sigma/sqrt(n))/m.x
+m.x <- integrate(f, 0, Inf)$value
+curve(f, 0, 2)
+t <- seq(0, 2, length=1000)
+ft <- f(t)
+Ft <- cumsum(ft)*(t[2]-t[1])
+Left <- t[abs(Ft-0.025)==min(abs(Ft-0.025))]
+Right <- t[abs(Ft-0.975)==min(abs(Ft-0.975))]
+out <- round(c(Left, Right), 4)
+cat("Positive mu, numerically: (", out[1], " ," ,out[2],")\n")
+```
+
+How about using Metropolis-Hastings? In fact the same algorithm as above works fine, except we need to change the proposal distribution so it only allows positive values:
+
+
+```{r}
+fun <- function(old.mu, new.mu)
+  dnorm(new.mu, samplemean.x, sigma/sqrt(n))/dnorm(old.mu, samplemean.x, sigma/sqrt(n))
+mu.x <- rep(samplemean.x, B)
+for(i in 2:B) {
+  new.mu <- runif(1, max(0, mu.x[i-1]-1),mu.x[i-1]+1)
+  if(runif(1)<fun(mu.x[i-1], new.mu)) mu.x[i] <- new.mu
+  else mu.x[i] <- mu.x[i-1]
+}
+out <-round(quantile(mu.x[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Metropolis-Hastings: (", out[1], " ," ,out[2],")\n")
+```
+
+How about the Gibbs sampler? Again we will need the marginals, but this time they can not be found analytically.
+
+`r hl()$hr()`
+
+Next we will consider the case of an unknown standard deviation. We then will need a prior on $\sigma$ as well. We will use $\sigma \sim 1/\sigma^2$. With this we find
+$$
+\begin{aligned}
+&f(\mathbf{x},\mu, \sigma )=\\ 
+&(2\pi \sigma^2)^{-n/2}\exp \left\{ -\frac{1}{2\sigma^2}\sum (x_{i}-\mu )^{2}\right\} \pi (\mu ) \frac{1}{\sigma^2}=\\
+&(2\pi )^{-n/2}\sigma^{-n-2}\exp \left\{ -\frac{1}{2\sigma^2}\left( \sum  (x_{i}-\overline{x})^{2}+n(\overline{x}-\mu )^{2} \right) \right\} \pi (\mu )=\\
+&(2\pi )^{-n/2}\sigma^{-n-2}\exp \left\{ -\frac{1}{2\sigma^2}\left( (n-1)s^2+n(\overline{x}-\mu )^{2} \right) \right\} \pi (\mu )=\\
+&(2\pi )^{-n/2}\sigma^{-n-2} 
+\exp \left\{ -\frac{(n-1)s^2}{2\sigma^2}   \right\} 
+\exp \left\{ -\frac{n(\overline{x}-\mu )^{2}}{2\sigma^2}  \right\} \pi (\mu )\\
+\end{aligned}
+$$
+Again we start with $\pi(\mu)=1$. For the MH algorithm we now need also a proposal distribution for $\sigma$: 
+
+```{r}
+S2 <- var(x.sample)
+f1 <- function(x) exp(-(n-1)*S2/2/x)/x^(n/2+1)
+f2 <- function(x, a) dnorm(samplemean.x, x, sqrt(a/n))
+fun <- function(old, new)
+    f1(new[2])*f2(new[1], new[2])/(f1(old[2])*f2(old[1], old[2]))
+mu.x <- rep(samplemean.x, B)
+sigma.x <- rep(sd(x.sample), B)
+new <- rep(0, 2)
+for(i in 2:B) {
+  new[1] <- runif(1, mu.x[i-1]-1, mu.x[i-1]+1)
+  new[2] <- runif(1, max(0, sigma.x[i-1]-1), sigma.x[i-1]+1)
+  if(runif(1)<fun(c(mu.x[i-1], sigma.x[i-1]), new)) {
+      mu.x[i] <- new[1]
+      sigma.x[i] <- new[2]
+  }    
+  else {
+      mu.x[i] <- mu.x[i-1]
+      sigma.x[i] <- sigma.x[i-1]
+  }    
+}
+out <-round(quantile(mu.x[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Metropolis-Hastings: (", out[1], " ," ,out[2],")\n")
+```
+notice that we are working here with the variance $\sigma^2$ as the parameter, not the standard deviation $\sigma$.
+
+For the Gibbs sampler we find
+$$
+\begin{aligned}
+&f(\mu| \mathbf{x}, \sigma^2)=K\exp \left\{ -\frac{n(\overline{x}-\mu )^{2}}{2\sigma^2} \right\}\\
+&f(\sigma^2| \mathbf{x}, \mu)=K(\sigma^2)^{-n/2-1} 
+\exp \left\{ -\frac{(n-1)s^2}{2\sigma^2}   \right\} 
+\end{aligned}
+$$
+
+
+$$
+\begin{aligned}
+&f(\sigma| \mathbf{x}, \mu)=K(\sigma^2)^{-n/2-1}
+\exp \left\{ -\frac{(n-1)s^2}{2\sigma^2}   \right\} 
+\end{aligned}
+$$
+
+What is this second density? It is called a scaled inverse chisquare distribution with n df and scale $nS^2$:
+$$
+f(x) = (n/2)^{n/2}/(\Gamma (n/2)) S^n (1/x)^{(n/2)+1} \exp[-(n S^2)/(2x)]
+$$
+the routine *rinvchisq* is part of the *geoR* package.
+So now we can use the Gibbs Sampler:
+```{r}
+library(geoR)
+mu.var<- rep(1, B)
+var.mu <- rep(4, B)
+for(i in 2:B) {
+  mu.var[i] <- rnorm(1, samplemean.x, sqrt(var.mu[i-1]/n))
+  var.mu[i] <- rinvchisq(1, df=n-1, scale=S2)
+}
+out <- round(quantile(mu.var[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Gibbs Sampler: (", out[1], " ," ,out[2],")\n")
+```
+Finally again the case $\pi >0$:
+
+```{r}
+mu.x <- rep(samplemean.x, B)
+sigma.x <- rep(sd(x.sample), B)
+new <- rep(0, 2)
+for(i in 2:B) {
+  new[1] <- runif(1, max(0, mu.x[i-1]-1), mu.x[i-1]+1)
+  new[2] <- runif(1, max(0, sigma.x[i-1]-1), sigma.x[i-1]+1)
+  if(runif(1)<fun(c(mu.x[i-1], sigma.x[i-1]), new)) {
+      mu.x[i] <- new[1]
+      sigma.x[i] <- new[2]
+  }    
+  else {
+      mu.x[i] <- mu.x[i-1]
+      sigma.x[i] <- sigma.x[i-1]
+  }    
+}
+out <-round(quantile(mu.x[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Metropolis-Hastings: (", out[1], " ," ,out[2],")\n")
+```

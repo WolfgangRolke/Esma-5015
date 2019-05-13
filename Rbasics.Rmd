@@ -1,0 +1,398 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## R Basics I
+
+To start run
+
+```{r, eval=FALSE}
+ls() 
+```
+
+This shows you a "listing"" of the files (data, routines etc.) in the current project. (Likely there is nothing there right now)
+
+Everything in R is either a data set or a function. It is a function if it is supposed to do something (maybe calculate something, show you something like a graph or something else etc. ). If it is a function is ALWAYS NEEDS (). Sometimes the is something in between the parentheses, like in 
+```{r echo=FALSE}
+x <- 1:11
+```
+
+```{r}
+mean(x)
+```
+
+Sometimes there isn't like in the ls(). But the () has to be there anyway.
+
+If you have worked for a while you might have things you need to save, do that by clicking on 
+
+File > Save 
+
+RStudio has a nice recall feature, using the up and down arrow keys. Also, clicking on the History tab shows you the recently run commands. Finally, typing the first three letters of a command in the console and then typing CTRL-^  shows you a list of when you ran commands like this the last times.
+
+R is case-sensitive, so a and A are two different things.
+
+Often during a session you create objects that you need only for a short time. When you no longer need them use  **rm** to get rid of them:
+  
+```{r}
+x <- 10
+x^2
+rm(x) 
+```
+
+the **<-** is the *assignment* character in R, it assigns what is on the right to the symbol on the left. (Think of an arrow to the left)
+
+###  Data Entry 
+
+For a few numbers the easiest thing is to just type them in:
+```{r}
+x <-  c(10, 2, 6, 9)
+x
+```
+c() is a function that takes the objects inside the () and  **c**ombines them into one single object (a vector). 
+
+### Data Types in R
+
+the most basic type of data in R is a **vector**, simply a list of values. 
+
+Say we want the numbers 1.5, 3.6, 5.1 and 4.0 in an R vector called x, then we can type 
+
+```{r}
+x <- c(1.5, 3.6, 5.1, 4.0)
+x
+```
+
+Often the numbers have a structure one can make use of:
+
+``` {r}
+1:10 
+10:1
+1:20*2
+c(1:10, 1:10*2)
+```
+
+Sometimes you need parentheses:
+
+```{r}
+n <- 10
+1:n-1
+1:(n-1)
+```
+
+The *rep* ("repeat") command is very useful:
+
+```{r}
+rep(1, 10)
+rep(1:3, 10)
+rep(1:3, each=3)
+rep(c("A", "B", "C"), c(4,7,3))
+```
+
+what does this do?
+```{r, eval=FALSE}
+rep(1:10, 1:10)
+```
+
+### Commands for Vectors
+
+To find out how many elements a vector has use the *length* command: 
+
+```{r}
+x <- c(1.4, 5.1, 2.0, 6.8, 3.5, 2.1, 5.6, 3.3, 6.9, 1.1)
+length(x)
+```
+
+The elements of a vector are accessed with the bracket [ ] notation:
+
+```{r}
+x[3]
+x[1:3]
+x[c(1, 3, 8)]
+x[-3]
+x[-c(1, 2, 5)]
+```
+
+Instead of numbers a vector can also consist of characters (letters, numbers, symbols etc.) These are identified by quotes:
+
+````{r} 
+c("A", "B", 7, "%")
+```
+
+A vector is either numeric or character, but never both (see how the 7 was changed to "7").
+
+You can turn one into the other (if possible) as follows:
+
+```{r}
+x <- 1:10
+x
+as.character(x)
+```
+
+```{r}
+x <- c("1", "5", "10", "-3")
+x
+as.numeric(x)
+```
+
+A third type of data is logical, with values either TRUE or FALSE. 
+
+```{r}
+x <- 1:10
+x
+x > 4
+```
+
+these are often used as conditions:
+
+```{r}
+x[x>4]
+```
+
+This, as we will see shortly, is EXTREMELY useful!
+
+### Data Frames
+
+data frames are the basic format for data in R. They are essentially vectors of equal length put together as columns. 
+
+A data frame can be created as follows:
+
+```{r}
+df <- data.frame(
+  Gender=c("M", "M", "F", "F", "F"),
+  Age=c(23, 25, 19, 22, 21),
+  GPA=c(3.5, 3.7, 2.9, 2.8, 3.1)
+)
+df
+```
+
+### Lists
+
+The most general data structures are lists. They are simply a collection of objects. There are no restrictions on what those objects are.
+
+#### **Example**
+
+```{r}
+lst <- list(
+  Gender=c("M", "M", "F", "F", "F"),
+  Age=c(23, 25, 19, 22, 21, 26, 34),
+  f=function(x) x^2,
+  list(A=c(1, 1), B=c("X", "X", "Y"))
+)
+lst
+```
+
+A data frame is a list with an additional requirement, namely that the elements of the list be of equal length.
+
+#### **Case Study**: UPR Admissions
+
+consider the  **upr** data set . This is the application data for all the students who applied and were accepted to UPR-Mayaguez between 2003 and 2013. 
+
+```{r}
+dim(upr)
+```
+
+tells us that there were 23666 applications and that for each student there are 16 pieces of information.
+
+```{r}
+colnames(upr)
+```
+
+shows us the variables 
+
+``` {r}
+head(upr, 3)
+```
+
+shows us the first three cases.
+
+Let's say we want to find the number of males and females. We can use the table command for that:
+
+```{r,echo=FALSE}
+rm(Gender)
+```
+
+
+``` {r, eval=FALSE}
+table(Gender)
+```
+
+```{r, echo=FALSE}
+cat("Error: object 'Gender' not found\n")
+```
+
+
+What happened? Right now R does not know what Gender is because it is "hidden" inside the upr data set. Think of **upr** as a box that is currently closed, so R can't look inside and see the column names. We need to open the box first:
+
+```{r}
+attach(upr)
+table(Gender)
+```
+
+there is also a detach command to undo an attach, but this is not usually needed because the attach goes away when you close R.  
+
+**Note**: you need to attach a data frame only once in each session working with R. 
+
+**Note**: Say you are working first with a data set "students 2016" which has a column called Gender, and you attached it. Later (but in the same R session) you start working with a data set "students 2017" which also has a column called Gender, and you are attaching this one as well. If you use Gender now it will be from "students 2017".
+
+### Subsetting of Data Frames
+
+Consider the following data frame (not a real data set):
+
+```{r, echo=FALSE}
+set.seed(111)
+Age <- sample(18:25, size=10, replace=T)
+GPA <- round(runif(10, 2, 4), 1)
+Gender <- sample(c("Male", "Female"), size=10, replace=T)
+students <- data.frame(Age, GPA, Gender)
+```
+
+```{r}
+students
+```
+
+Here each single piece of data is identified by its row number and its column number. So for example in row 2, column 2 we have "3.2", in row 6, column 3 we have "Male". 
+
+As with the vectors before we can use the  [ ] notation to access pieces of a data frame, but now we need to give it both the row and the column number, separated by a ,:
+
+```{r}
+students[6, 3]
+```
+
+As before we can pick more than one piece:
+
+```{r}
+students[1:5, 3]
+students[1:5, 1:2]
+students[-c(1:5), 3]
+students[1, ]
+students[, 2]
+students[, -3]
+```
+
+another way of subsetting a data frame is by using the \$ notations:
+
+```{r}
+students$Gender
+```
+
+
+### Subsetting of Lists
+
+The double bracket and the \$ notation also work for lists:
+
+#### **Example**
+
+```{r}
+lst <- list(
+  Gender=c("M", "M", "F", "F", "F"),
+  Age=c(23, 25, 19, 22, 21, 26, 34),
+  f=function(x) x^2,
+  list(A=c(1, 1), B=c("X", "X", "Y"))
+)
+lst[[4]][[2]]
+lst$Gender
+```
+
+
+### Vector Arithmetic 
+
+R allows us to apply any mathematical functions to a whole vector:
+
+```{r}
+x <- 1:10
+2*x
+```
+
+```{r}
+x^2
+```
+
+```{r}
+log(x)
+```
+
+```{r}
+sum(x)
+```
+
+```{r}
+y <- 21:30
+```
+
+```{r}
+x+y
+```
+
+```{r}
+x^2+y^2   
+```
+
+```{r}
+mean(x+y) 
+```
+Let's try something strange:
+
+```{r}
+c(1, 2, 3) + c(1, 2, 3, 4)
+```
+so R notices that we are trying to add a vector of length 3 to a vector of length 4. This should not work, but it actually does!
+
+When it runs out of values in the first vector, R simply starts all over again. 
+
+In general this is more likely a mistake by you, check that this is what you really wanted to do!
+
+
+### *apply*
+
+A very useful routine in R is *apply*, and its brothers. 
+
+Let's say we have the following matrix:
+
+```{r}
+Age <- matrix(sample(20:30, size=100, replace=TRUE), 10, 10)
+Age[1:5, 1:5]
+```
+
+and we want to find the sums of the ages in each column. Easy:
+
+```{r}
+sum(Age[, 1])
+sum(Age[, 2])
+```
+...
+```{r}
+sum(Age[, 10])
+```
+
+or much easier
+
+```{r}
+apply(Age, 2, sum)
+```
+
+There are a number of apply routines for different data formats. 
+
+#### **Case Study**: upr admissions
+
+Let's say we want to find the mean Highschool GPA:
+
+```{r}
+mean(Highschool.GPA)
+```
+
+But what if we want to do this for each year separately? Notice that *apply* doesn't work here because the Years are not in separated columns. Instead we can use
+
+```{r}
+tapply(Highschool.GPA, Year, mean)
+```
+

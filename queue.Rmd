@@ -1,0 +1,54 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Waiting Time
+
+A call center is open from 8am in the morning until 5pm in the afternoon Monday to Friday. It is a small center with only one person answering phone calls. If a person is calling while the operator is busy they are put on hold. The call center decides to give a new caller some information on the expected waiting time. The information provided should be a message like this:
+
+"Your call is very important to us. Our representative is currently busy with another customer. You are the next person in line, and your expected wait time is between 1 and 5 minutes"
+
+or maybe
+
+"Your call is very important to us. Our representative is currently busy with other customers. You are caller number 3 in line, and your expected wait time is between 15 and 27 minutes"
+
+In order to figure out the wait times they keep track of all calls and waiting times for one month (24 working days). 
+
+You can get the data with
+
+```{r}
+source("http://academic.uprm.edu/wrolke/esma5015/queuedata.txt")
+```
+
+Here it what the start looks like:
+
+```{r}
+kable.nice(head(Days[[1]]))
+```
+
+
+this tells us that on day 1 the first call came in at 8:21 AM. It lasted until 8:31 AM. There was also a call coming in at 8:27 AM, so by the time the first call was finished there was 1 customer waiting in line.
+
+At the end of day 1 we find
+
+```{r}
+kable.nice(tail(Days[[1]]))
+```
+
+As we can see, the last call was accepted just before 5 pm but those already on line were still getting taken care off (nice!)
+
+`r hl()$hr()`
+
+Use the data provided and write a computer program that finds a 95\% confidence interval for a person who is $n^{th}$ in line and who calls in when the customer rep has already talked $k$ minutes with the current customer. 

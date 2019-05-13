@@ -1,0 +1,305 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## The Slice Sampler 
+
+
+In the discussion on the fundamental theorem of Simulation we had the following picture 
+
+```{r, echo=FALSE}
+fc <- function (from, to, f, cl = "red", n = 250) 
+{
+    x <- seq(from, to, length = n)
+    rect(x[-n], rep(0, n-1), x[-1], f(x[-1]), 
+         col = cl, border = NA)
+}
+f <- function(x) dbeta(x, 3, 7)
+curve(f, 0, 1)
+fc(0, 1, f, "blue")
+```
+
+and the idea was to generate a pair of uniforms in the rectangle and accept the y if $u<f(y)$.
+
+Now let's say that instead the density we want to simulate looks like this:
+
+```{r, echo=FALSE}
+nor3 <- function(x) { 
+  exp(-(x-0.25)^2 /2/0.025^2)/0.025 + exp(-(x-0.5)^2/2/0.05^2)/0.05 + exp(-(x-0.75)^2/2/0.025^2)/0.025
+}  
+curve(nor3, 0, 1)
+fc(0, 1, nor3, "blue")
+```
+
+Clearly if we simply simulate pairs of uniforms most of the time the pair will be rejected, and the algorithm will be very inefficient. In light of the discussion on the Metropolis-Hastings algorithm is seems it would be a good idea to instead generate a Markov chain, and it is clear that it has to be a chain with a stationary distribution that is uniform on the rectangle.
+
+A natural solution to this is to use a random walk process since they (almost always) result in uniform stationary distributions. Also an obvious way to construct the random walk is to alternate steps in the two directions, say first along the x axis, then the y axis, then the x axis and so on. Finally it turns out going in one direction  we can always take steps of the same size. With this we have the following
+
+**Algorithm (2D slice sampler)**  
+At iteration i, simulate
+
+1) $u^{(i+1)} \sim U[0, f(x^{(i)})]$
+
+2)  $x^{(i+1)} \sim U[A^{(i+1)}]$ where $A^{(i+1)} = \left\{x : f(x) \ge u^{(i+1)} \right\}$ 
+
+<hr>
+As before with the Metropolis-Hastings algorithm, f need not be normalize.
+
+The hard part of this algorithm is the solution of the inequality $u \le f(x)$. Of course if f has in inverse this is simple:
+
+####**Example**
+we want to simulate data from 
+$$
+f(x) = \frac12 \exp (-\sqrt x) \text{ , } x>0
+$$
+Now 
+$$
+\begin{split} 
+\begin{aligned}
+&y = \frac12 \exp(-\sqrt x) \\
+&2y = \exp(-\sqrt x) \\
+&\log(2y) = -\sqrt x \\
+&x = \log(2y)^2
+\end{aligned}
+\end{split}
+$$
+so we have
+
+1) $u^{(i+1)} \sim U[0, \frac12 \ exp(-\sqrt x^{(i)}))]$  
+2) $x^{(i+1)} \sim  U[0, log(2u^{(i+1)})^2]$
+
+```{r}
+B <- 1e4
+x <- runif(B, 0, 1)
+u <- runif(B, 0, 1)
+plot(c(0, 40), c(0, 1/4), type="n")
+
+for(i in 2:B) {
+  u[i] <- runif(1, 0, 1/2*exp(-sqrt(x[i-1])))
+  x[i] <- runif(1, 0, log(2*u[i])^2)
+  if(i<100) {
+    segments(x[i-1], u[i-1], x[i], u[i])
+  }  
+}
+hist(x[-c(1:1000)], 100, freq=FALSE, main="", xlim = c(0,50))
+curve(0.5*exp(-sqrt(x)), 0, 40, add = TRUE, lwd=2)
+```
+
+If it is not possible to calculate $f^{-1}$, maybe because f is multi-modal, we can try a kind of numerical inversion :
+
+####**Example**
+the function shown at the beginning of this chapter is actually the following:
+$$
+\begin{aligned}
+\text{nor3}(x) = &\exp (-(x-0.25)^2 /2/0.025^2)/0.025 + \\
+&\exp (-(x-0.5)^2/2/0.05^2)/0.05 + \\
+&\exp (-(x-0.75)^2/2/0.025^2)/0.025
+\end{aligned}
+$$
+Let's  use the 2D slice sampler to simulate from this curve. Say in step 1) we picked $u^{(i+1)} = 10$, then in step 2) we are supposed to pick a point uniformly from the blue set:
+
+```{r}
+y <- 10
+x <- seq(0, 1, length=1000)
+fx <- nor3(x)
+xinf <- x[fx>y]
+curve(nor3, 0, 1)
+abline(h=y)
+points(xinf, rep(y, length(xinf)), pch=".")
+points(xinf, rep(0, length(xinf)), pch=".", 
+       cex=3, col="blue")
+y <- 20
+xinf <- x[fx>y]
+curve(nor3, 0, 1)
+abline(h=y)
+points(xinf, rep(y, length(xinf)), pch=".")
+points(xinf, rep(0, length(xinf)), pch=".", 
+       cex=3, col="blue")
+```
+
+As long as calculating the function values is cheap, we can just do that numerically by calculating y's on a grid of x values, and randomly selecting those x values with $y>u$.
+
+```{r}
+B <- 1e4
+v <- rep(x[500], B)
+u <- rep(y[500], B)
+for(i in 2:B) {
+  u[i] <- runif(1, 0, nor3(v[i-1]))
+  xinf <- x[fx>u[i]]
+  v[i] <- sample(xinf, 1)
+}
+hist(v[-c(1:1000)], 100, freq=FALSE, main="")
+I <- integrate(nor3, 0, 1)$value
+lines(x, fx/I, lwd=2)
+```
+
+And now we have basically a general event generator in one dimension:
+
+```{r}
+f <- function(x) abs(sin(x))+3*abs(cos(x))+x
+x <- seq(-1, 2, length=1000)
+fx <- f(x)
+v <- rep(x[500], B)
+u <- rep(y[500], B)
+for(i in 2:B) {
+  u[i] <- runif(1, 0, f(v[i-1]))
+  xinf <- x[fx>u[i]]
+  v[i] <- sample(xinf, 1)
+}
+hist(v[-c(1:1000)], 100, freq=FALSE, main="")
+I <- integrate(f, -1, 2)$value
+lines(x, fx/I, lwd=2)
+```
+
+The problem of having to find an inverse can sometimes be overcome by a generalization of the 2D slice sampler. Say we want to sample from a density $f$ which can be written as
+
+$$
+f(x) = \prod_{i=1}^k f_i(x)
+$$
+
+where the $f_i(x)$ need not be densities. Then we have the general 
+
+**Algorithm (Slice sampler)**
+
+At iteration i, simulate
+
+1: $w_1^{(i+1)} \sim U[0, f_1(x^{(i)})]$  
+...  
+k: $w_1^{(k+1)} \sim U[0, f_k(x^{(k)})]$
+
+k+1:  $x^{(i+1)} \sim U[A^{(i+1)}]$  
+
+where 
+
+$A^{(i+1)} = \left\{ y : f_j(y) \ge w_j^{(i+1)}; j=1,..,k \right\}$
+
+**Example**: say 
+$$
+f(x) = (1+ \sin(3x)^2)(1+\cos(5x)^4)exp(-x^2/2) 
+$$
+```{r}
+f <- function(x) (1+ sin(3*x)^2)*(1+cos(5*x)^4)*exp(-x^2/2) 
+curve(f, 0, 1)
+```
+
+now 
+```{r}
+x <- seq(0, 1, length=1000)
+f1 <- function(x) 1+sin(3*x)^2
+fx1 <- f1(x)
+w1 <- rep(0.5, B)
+f2 <- function(x)  1+cos(5*x)^4
+fx2 <- f2(x)
+w2 <- rep(0.5, B)
+f3 <- function(x)  exp(-x^2/2) 
+fx3 <- f3(x)
+w3 <- rep(0.5, B)
+v <- rep(x[500], B)
+
+for(i in 2:B) {
+  w1[i] <- runif(1, 0, f1(v[i-1]))
+  w2[i] <- runif(1, 0, f2(v[i-1]))
+  w3[i] <- runif(1, 0, f3(v[i-1]))  
+  tmpfx2 <- fx2[ fx1 > w1[i] ]  
+  tmpfx3 <- fx3[ fx1 > w1[i] ]  
+  xinf <- x[ fx1 > w1[i] ]  
+  tmpfx3 <- tmpfx3[ tmpfx2 > w2[i] ]  
+  xinf <- xinf[tmpfx2 > w2[i]]  
+  xinf <- xinf[tmpfx3 > w3[i]]
+
+  v[i] <- sample(xinf, 1)
+}
+hist(v[-c(1:1000)], 100, freq=FALSE, main="")
+I <- integrate(f, 0, 1)$value
+lines(x, fx1*fx2*fx3/I, lwd=2)
+```
+
+This version is of course especially useful if we want to simulate from a Bayesian posterior distribution:
+
+**Example**: say we have observations $X_1, .., X_n$ from an exponential distribution with rate $\lambda$. We want to estimate $\lambda$ as the mean of the posterior distribution. If we use as a prior $\pi (\lambda) \sim 1/\lambda$, $\lambda >0$ we find 
+
+![](graphs/slice3.png)
+
+but what if we want to use $\pi( \lambda) \sim \lambda /(\lambda +1)^2$?  Now m(x) can not be calculated but  we can simulate from the posterior distribution:
+
+$$
+f(t) = t^n \exp(-St) t/(t+1)^2
+$$
+
+Let
+
+$$
+f_1(t) = t^n \exp(-St)\\
+f_2(t) = t/(t+1)^2
+$$
+
+```{r}
+n <- 50
+x.sample <- rexp(n, 2)
+S <- sum(x.sample)
+x <- seq(0, 5, length=1000)
+f1 <- function(x) x^n*exp(-S*x)
+fx1 <- f1(x)
+w1 <- rep(mean(x.sample), B)
+f2 <- function(x)  x/(x+1)^2
+fx2 <- f2(x)
+w2 <- rep(mean(x.sample), B)
+v <- rep(mean(x.sample), B)
+
+for(i in 2:B) {
+  w1[i] <- runif(1, 0, f1(v[i-1]))
+  w2[i] <- runif(1, 0, f2(v[i-1]))
+  tmpfx2 <- fx2[ fx1 > w1[i] ]  
+  xinf <- x[ fx1 > w1[i] ]  
+  xinf <- xinf[tmpfx2 > w2[i]]  
+  v[i] <- sample(xinf, 1)
+}
+out <- round( quantile(v[-c(1:1000)], c(0.025, 0.975)), 2)
+cat("Bayesian 95% credible interval for lambda: (", out[1], ", ", out[2], ")\n")
+```
+
+**Example**: let's consider the normal mixture model, that is if $\phi (x; \mu, \sigma)$ denotes the normal density with mean $\mu$ and standard deviation $\sigma$, and if $0 \le \alpha \le 1$, then 
+
+$$
+\begin{aligned}
+&f(x; \alpha, mu_1, \sigma_1, \mu_2, \sigma_2) =\\ 
+&\alpha \phi(x, \mu_1, \sigma_1) + (1- \alpha) \phi (x; \mu_2, \sigma_2)
+\end{aligned}
+$$
+
+Let's say we have a sample $X_1, .., X_n$ from f and we want to find a 90% credible interval for $\alpha$. As priors we will use flat priors on $\alpha$, $\mu_1$ and $\mu_2$, and $g(x) \sim 1/x$ for $\sigma_1$ and $\sigma_2$.
+
+with this we find the posterior distribution to be
+
+$$
+\begin{aligned}
+&f(\alpha, mu_1, \sigma_1, \mu_2, \sigma_2; \mathbf{x}) =\\ 
+&\prod_1^n \left( \alpha \phi(x_i, \mu_1, \sigma_1) + (1- \alpha) \phi (x_i; \mu_2, \sigma_2) \right)\frac{1}{\sigma_1 \sigma_2}
+\end{aligned}
+$$
+
+so we need to sample from this density. Now the obvious choice is to use
+
+$$
+\begin{aligned}
+&f_i( \alpha, mu_1, \sigma_1, \mu_2, \sigma_2; \mathbf{x}) =\\ 
+&\alpha \phi(x_i, \mu_1, \sigma_1) + (1- \alpha) \phi (x_i; \mu_2, \sigma_2)\\
+&i=1,..,n\\
+&f_{n+1}(\alpha, mu_1, \sigma_1, \mu_2, \sigma_2; \mathbf{x}) = \frac{1}{\sigma_1}\\
+&f_{n+2}(\alpha, mu_1, \sigma_1, \mu_2, \sigma_2; \mathbf{x}) = \frac{1}{\sigma_2}
+\end{aligned}
+$$
+
+if n is large, clearly this will be very slow! 

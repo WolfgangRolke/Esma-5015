@@ -1,0 +1,124 @@
+---
+header-includes: \usepackage{color}
+                  \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Introduction to ESMA 5015
+
+
+### Simulation
+
+Modern computers allow us to experiment with data.  
+
+####**Example** 
+
+Consider the data set on the 1970's draft.
+
+In R the dataset draft is organized as a matrix, with 366 rows and two columns. Just typing draft shows the content of the dataset.
+
+In Statistics we really like to look at pictures. For this type of data the standard one is called the **scatterplot** (really just the data plotted in a Cartesian coordinate system):
+
+
+```{r}
+ggplot(data=draft, aes(Day.of.Year, Draft.Number)) +
+  geom_point() 
+```
+
+It certainly does not appear that there is a relationship between "Day of the Year" and "Draft Number", but is this really true? As first hint that this may not be so let's add the least squares regression line:
+
+
+```{r}
+ggplot(data=draft, aes(Day.of.Year, Draft.Number)) +
+  geom_point() +
+  geom_smooth(method = "lm", se=FALSE)
+```
+
+which needs a few explanations:
+
+- the least squares regression method is a special case of what is called the **linear model**, and in R the calculations are done with the **lm** command. It uses the **formula** structure y~x with the response (y) on the left and the predictor (x) on the right. So lm(Draft.Number~Day.of.Year) finds the least squares regression for y (=Draft.Number) vs x (=Day.of.Year)
+
+Let's see some details of this **fit**:
+
+```{r}
+summary(lm(Draft.Number~Day.of.Year, data=draft))
+```
+
+Back to the draft. If there is no relationship between the x and the y variables, then the line should be flat. Ours seems to have a negative slope, so maybe there is a problem. Of course, the specific data we have depends on the **sample** we have drawn, and the line will never be perfectly flat. The question is, how much of a slope is to much?
+As a second way to look at the data we might find the **correlation coefficient r**
+
+```{r}
+cor(draft$Draft.Number, draft$Day.of.Year)
+```
+
+Recall some properties of the correlation coefficient:
+
+- $-1 < r < 1$    
+- r close to 0 means very small or even no correlation (relationship)  
+- r close to -1 means strong negative relationship  
+- r close to +1 means strong positive relationship
+
+So we have r = -0.226. But of course the question is whether -0.226 is close to 0, close enough to conclude that all went well. In effect we want to do a **hypothesis test**. This is a method that chooses one of two options. Here these are:
+
+H~0~: Draft was random vs. H~a~: Draft was not random 
+
+We have already decided to use Pearson's correlation coefficient as a measure of "randomness" (or more precisely of "independence" of the two variables "Day of the Year" and "Draft Number". It comes in two versions: 
+
+- r:  a **statistic**, that is a number computed from a **sample**  
+- $\rho$ \- a **parameter**, that is a number belonging to a **population**  
+
+$\rho$ tells us something about the procedure that was used in 1970. If the procedure "worked" as intended we should have $\rho = 0$. r is the actual result of the draft as done in 1970.  
+We have found r = -0.226, but the real question is whether or not $\rho = 0$, so we can rewrite the hypotheses as follows:
+
+H~0~: $\rho = 0$ (= draft was random)  
+H~a~: $\rho \ne 0$ (= draft was not random)
+
+The "traditional" way to answer this question would be to find the **sampling distribution** of r. For example, if it can be assumed that the central limit theorem applies here (and it does), then a number closely related to r has a sampling distribution which is a t distribution. Then the value of this test statistic can be compare to a t table. All of this is implemented in the command **cor.test**:  
+
+
+```{r}
+cor.test(draft$Draft.Number, draft$Day.of.Year)
+```
+
+We see that p-value = $1.3 \times 10^{-5}$, so the test rejects the null hypothesis for any reasonable type I error probability $\alpha$, and we reject the null hypothesis. It appears that $\rho \ne 0$.
+
+The above works perfectly fine, but in general there could be two problems: 
+
+- Just about every statistical method has **assumptions**, what do we do if these are either violated or hard to verify?   
+- What if we wish to use a test statistic with no known sampling distribution?
+
+In these situations (and many others) we can try to do a  simulation:
+
+Doing a **simulation** means recreating the data on a computer under controlled conditions, and then comparing the result with the real-live data. For us this means generating an artificial version of Draft Number, calculate the correlation of this variable and Day and see how large these correlations are. We can do this as follows:
+
+```{r}
+cor(draft$Day.of.Year,
+    sample(draft$Day.of.Year))
+```
+
+But we need to do this many times, so let's automate the process:
+
+```{r}
+B <- 10000
+z <- rep(0, B)
+for(i in 1:B) 
+  z[i] <-cor(draft$Day.of.Year,
+    sample(draft$Day.of.Year))
+length(z[abs(z) > 0.226])
+```
+
+and we see that in 10000 runs we NEVER got an r as large as 0.226, so we would conclude that the p value of the test is < 1/10000.
+
+Another great feature of R is that we can write our own functions.  In the terminology of hypothesis testing we would say that the test has a p-value less than 0.001, and so would reject the null hypothesis. We would conclude that the draft was **not** random.
+
+So, something did go wrong! 

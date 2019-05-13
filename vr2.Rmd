@@ -1,0 +1,507 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+
+## Conditioning and Importance Sampling
+
+### Conditioning
+
+We have previously seen a  famous formula for conditional expectations: 
+$$
+E \left\{ E[X|Y] \right\}=E[X]
+$$
+
+####**Example**
+Say (X,Y) is a discrete rv with joint density given by
+```{r, echo=FALSE}
+xy <- cbind(c(0.1, 0.1, 0), c(0, 0.2,0.6))
+dimnames(xy) <- list(0:2, 0:1)
+kable.nice(xy)
+```
+
+So the marginal of X is 
+
+```{r, echo=FALSE}
+x <- data.frame(x=0:2,
+                z=apply(xy, 1, sum))
+colnames(x) <- c("x", "P(X=x)")
+rownames(x) <- NULL
+kable.nice(x)
+```
+
+and so
+$$
+E[X]=0\cdot 0.1+1 \cdot 0.3+2 \cdot 0.6=1.5
+$$
+Also the marginal of Y is
+
+```{r, echo=FALSE}
+y <- data.frame(y=0:1,
+                z=apply(xy, 2, sum))
+colnames(y) <- c("y", "P(Y=y)")
+rownames(y) <- NULL
+kable.nice(y)
+```
+
+the conditional density of $X|Y=0$ is
+
+```{r, echo=FALSE}
+x.y0 <- data.frame(x=0:2,
+                z=c(0.5, 0.5, 0))
+colnames(x.y0) <- c("x", "P(X=x|Y=0)")
+rownames(x.y0) <- NULL
+kable.nice(x.y0)
+```
+
+so 
+$$
+E[ X|Y=0 ] =0 \cdot 0.5+1 \cdot 0.5+2 \cdot 0=0.5
+$$
+
+and the conditional density of $X|Y=1$ is
+
+```{r, echo=FALSE}
+x.y1 <- data.frame(x=0:2,
+                z=c(0, 0.25, 0.75))
+colnames(x.y1) <- c("x", "P(X=x|Y=1)")
+rownames(x.y1) <- NULL
+kable.nice(x.y1)
+```
+
+$$
+E[X|Y=1]=0 \cdot 0+1 \cdot 0.25+2 \cdot 0.75=1.75.
+$$
+
+Now let the rv $Z=E[X|Y]$, then
+```{r, echo=FALSE}
+z <- data.frame(x=c(0.5, 1.75),
+                z=c(0.2, 0.8))
+colnames(z) <- c("z", "P(Z=z)")
+rownames(z) <- NULL
+kable.nice(z)
+```
+
+
+and finally 
+$$
+E\left\{ E[X|Y] \right\} = E[Z]=0.5 \cdot 0.2+1.75 \cdot 0.8=1.5=E[X]
+$$
+
+There is also an equivalent formula for the conditional variance:
+
+$$
+Var[X]=E[Var(X|Y)]+Var[E(X|Y)]
+$$
+Let's see:
+$$
+Var[X]=E[X^2]-E[X]^2 = \\
+0^2 \cdot 0.1+1^2 \cdot 0.3+2^2 \cdot 0.6 - 1.5^2 = 0.45
+$$
+
+Now 
+
+$$
+Var[E(X|Y)] = Var[Z] = \\
+0.5^2 \cdot 0.2+1.75^2 \cdot 0.8 - 1.5^2 = 2.5 - 2.25 = 0.25
+$$
+
+Also Var[X|Y] is a rv (just like E[X|Y]) with density
+
+$$
+\begin{aligned}
+&Var[X|Y=0] = E[X^2|Y=0] -E[X|Y=0]^2\\
+&Var[X|Y=1] = E[X^2|Y=1] -E[X|Y=1]^2
+\end{aligned}
+$$
+
+so if we set $Z_1 = Var[X|Y]$ we have
+
+```{r, echo=FALSE}
+z1 <- data.frame(x=c(0.25, 1.875),
+                z=c(0.2, 0.8))
+colnames(z1) <- c("z", "P(Z1=z)")
+rownames(z1) <- NULL
+kable.nice(z1)
+```
+
+
+and 
+$$
+E[Var(X|Y)] = E[Z_1] = 0.25 \cdot 0.2+0.1875 \cdot 0.8 = 0.2
+$$
+
+and so 
+
+$$
+Var(E[X|Y])+E[Var(X|Y)] = 0.2+0.25 = 0.45
+$$
+`r hl()$hr()`
+So, how can we use this formula for reducing the variance of our simulation estimators? Because $Var(X|Y)>0$ always we have
+$$
+Var(X) \ge Var[E(X|Y)] 
+$$
+for any rv Y. So say we run a simulation yielding a rv X with $E[X]=\theta$ and the simulation yields a second rv Y, such that $E[X|Y]$ is known. Since $E \left\{ E[X|Y] \right\} =E[X]=\theta$ it follows that $E[X|Y]$ is also an unbiased estimator of $\theta$ and has a variance not larger than X itself.
+
+####**Example**
+Say we would like to use simulation to estimate the value of $\pi$ (=3.14...). A straight-forward simulation is as follows:
+
+generate $V_1, V_2$ iid $U[-1,1]$. If $V_1^2+V_2^2 \le 1$ set $Z_i=1$, otherwise 0. Run the simulation n times, then $4(\sum Z_i)/$n is an estimator of $\pi$
+
+```{r}
+B <- 1e5
+u1 <- 2*runif(B)-1
+u2 <- 2*runif(B)-1
+z <- ifelse(u1^2 + u2^2 < 1, 1, 0)
+plot(u1, u2, xlim = c(-1, 1), type = "n", 
+     ylim = c(-1, 1), pch = ".")
+points(u1[z==1], u2[z==1], col = "red", pch = ".")
+points(u1[z==0], u2[z==0], col = "blue", pch = ".")
+z <- 4*z
+out <- round(c(mean(z), sd(z)) ,4)
+cat("Standard Simulation :", out,  "\n")
+```
+
+Now let's use the estimator $E[Z|V_1]$ instead of $Z$. Note
+
+$$
+\begin{aligned}
+&E[Z|V_1=v]=P(V_1^2+V_2^2 \le 1|V_1=v)=\\
+&P(v^2+V_2^2 \le 1|V_1=v)=\\
+&P(V_2^2 \le 1-v^2|V_1=v)=\\
+&P(V_2^2 \le 1-v^2)=\\
+&P(-\sqrt{1-v^2} \le V_2 \le \sqrt{1-v^2})=\\
+&\int_{-\sqrt{1-v^2}}^{\sqrt{1-v^2}} \frac12 dx=\sqrt{1-v^2}\\
+&\text{so}\\
+&E[Z|V_1]=\sqrt{1-V_1^2}
+\end{aligned}
+$$
+and so $\sqrt{1-V_1^2}$ is a better estimator than Z alone.
+
+```{r}
+u <- 2 * runif(B) - 1
+z <- 4 * sqrt(1 - u^2)
+out <- round(c(mean(z), sd(z)) ,4)
+cat("Conditional Simulation :", out, "\n")
+```
+
+Note that this new estimator has another advantage: it needs only one $U[0,1]$ per simulation run.
+
+How much better is it? Let's see:
+$$
+\begin{aligned}
+&Z \sim \text{Ber}(\frac\pi4) \\
+&Var(Z)=\frac\pi4(1-\frac\pi4)=0.1686\\
+&Var(\sqrt{1-V_1^2})=E[(\sqrt{1-V_1^2})^2]-E[\sqrt{1-V_1^2}]^2=\\
+&E[1-V_1^2]-(\frac\pi4)^2=\\
+&1-E[V_1^2]-(\frac\pi4)^2=\\
+&1-(\frac\pi4)^2 - \left( Var(V_1) + (E[V_1])^2  \right)=\\
+&1-(\frac\pi4)^2 - \left( \frac{1^2-(-1)^2}{12} + (0)^2  \right)=0.0498
+\end{aligned}
+$$
+
+and so
+
+$$
+Var(Z) = Var( 4(\sqrt {1-V_1^2} )] = 16*0.0498 = 0.7968
+$$
+
+####**Example**
+Say $X \sim \text{Exp}(1)$, $Z \sim \text{Exp}(1/2)$, independent and we want to find $p=P(X+Z\ge 4)$
+
+$$
+\begin{aligned}
+&P(X+Z\ge 4)=E[I_{[4, \infty)}(X+Z)]=\\
+&E \left\{ E[I_{[4, \infty)}(X+Z)]|Z] \right\}=\\
+&E[I_{[4, \infty)}(X+Z)]|Z =z]=\\
+&E[I_{[4, \infty)}(X+z)]|Z =z]=\\
+&P(X>4-z)=1-P(X<4-z)=\\
+&\exp(-(4-z))=\exp(z-4)
+\end{aligned}
+$$
+if $z<4$ and 0 otherwise. So
+
+
+```{r}
+B <- 1e5
+x <- rexp(B, 1)
+z <- rexp(B, 2)
+v <- ifelse(x+z>4, 1, 0)
+cat("Standard Simulation :", mean(v), "  sd :", sd(v), "\n")
+v <- ifelse(z<4, exp(z-4), 1)
+cat("Conditioning Simulation :", mean(v), "  sd :", sd(v), "\n")
+```
+
+####**Example**
+say we want to find 
+
+$$
+I=\int_0^\infty \int_0^1 \sqrt{x+y} \text{ }e^{-x}dx
+$$
+
+Now $I=E[ \sqrt{X+U} ]$ where $X \sim \text{Exp}(1)$ and $U \sim U[0,1]$. 
+
+Let $V=E[ \sqrt{X+U}|X ]$, then
+
+$$
+\begin{aligned}
+&E[ \sqrt{X+U}|X=x ]=\\
+&E[ \sqrt{x+U} ]=\int_0^1 \sqrt{x+u} du=\\
+&\frac23\sqrt{(x+u)^3}|_0^1=\\
+&\frac23\left( \sqrt{(x+1)^3} - \sqrt{x^3}\right)
+\end{aligned}
+$$
+```{r}
+B <- 1e5
+x <- rexp(B, 1)
+u <- runif(B)
+v <- sqrt(x+u)
+cat("Standard Simulation :", mean(v), "  sd :", sd(v), "\n")
+x = rexp(B, 1)
+v <- 2/3*(sqrt((x+1)^3) - sqrt((x)^3))
+cat("Conditioning Simulation :", mean(v), "  sd :", sd(v), "\n")
+```
+
+
+### Importance Sampling
+
+####**Example**
+say we have a rv X geometric with $p=0.5$. We want to find $P( \log (X!)>50)$.
+
+Let's try to solve this problem analytically. First, $\log(x!)$ is an increasing function of x, so there exists $x_{50}$ such that $\log(x!)>50$ iff $x>x_{50}$, so that 
+$$
+P(\log(X!)>50)=P(X\ge x_{50})
+$$
+
+Finding $x_{50}$ analytically is hopeless, though. We can do it with R by trial and error: using *log(factorial(n))** for different values of n:
+
+```{r}
+log(factorial(10))
+log(factorial(20))
+log(factorial(30))
+log(factorial(25))
+log(factorial(22.5))
+```
+
+We find n=22.5, so 
+
+![](graphs/vr23.png)
+
+or about $2.38 \times 10^{-7}$
+
+How about an R check?  The problem with this is that the probability p we want to find is very small, so in a simple simulation as shown in we can expect the outcome of interest only about every 1 in 4.2million runs. In order to get some reasonably good estimate we probably need to run the simulation with $n=10^9$. 
+
+Here is an  idea: the problem is that our event of interest, $\log(X!)>50$, is very rare, it almost never happens. Let's instead sample from a distribution Y which has large values much more often, so that $\log(Y!)>50$ happens more often. For example, let's try Y  geometric with $p=0.05$:
+
+```{r}
+B <- 1e5
+y <- rgeom(B, 0.05)+1
+logfac_y <- 0.918938533205 + (y+0.5)*log(y)-y
+sum(logfac_y>50)/B
+```
+
+**Note** the calculation of $\log(y!)$ this is based on Stirlings' Formula:
+
+$$n! \approx \sqrt{2\pi}n^{n+\frac12}e^{-n}$$
+so
+$$
+\log(n! ) \approx  \log(\sqrt{2\pi})  +(n+\frac12)\log(n)-n 
+$$
+
+this is to avoid problem with numbers that are bigger than R can handle!
+
+So $P(\log(Y!)>50)=0.35$. But what good is that? I want X! Well:
+
+![](graphs/vr25.png)
+
+so if we sample from Y and find the sum we can still get an estimate of the probability for X:
+  
+```{r}
+y <- y[logfac_y >= 50]
+w <- dgeom(y - 1, 0.5)/dgeom(y - 1, 0.05)
+return(sum(w)/B)
+```
+In general we have the following: Let X be a rv' with density f and and Y a rv' with density g. Say we want to find $E[h(X)]$. Then
+
+![](graphs/vr24.png)
+
+**Note** this was done for discrete rv's but it works just as well for continuous ones.
+
+**Note** how to choose Y? Obviously we need Y such that it can't happen that $P(Y=x)>0$ and $P(X=x)=0$. In general we should choose a Y with the same *support* as X, that is $P(X=x)>0$ iff $P(Y=x)>0$. 
+
+It is not necessary to have a Y that "looks like" X. For example in the case above we could have chosen Y with density
+
+$$
+f_Y(x)=6/(\pi^2 x^2) \text{ , } x=1,2,..
+$$
+
+It is also a good idea to choose Y such that the event of interest , here $\log(Y!)>50$, happens about 50% of the time. 
+
+####**Example**
+say X, Y and Z have a standard normal distribution. Find $P(|XYZ|>K)$, for example $K=10$
+
+Now there is no way to do this analytically, and again the probability is very small. So we will use IS with X', Y' and Z' generated from normal distributions with mean 0 and standard deviation s. For our case of $K=10$ $s=3.5$ works good. In general, for some K play around a bit to find a good s. 
+
+```{r}
+B <- 1e5
+K <- 10
+s <- 3.5
+x <- rnorm(B, 0, s)
+y <- rnorm(B, 0, s)
+z <- rnorm(B, 0, s)
+T <- abs(x*y*z)
+I <- c(1:B)[T > K]
+print(length(I)/B)
+w <- dnorm(x[I])/dnorm(x[I], 0, s)*dnorm(y[I])/dnorm(y[I],  0, s)*dnorm(z[I])/dnorm(z[I], 0, s)
+sum(w)/B
+```
+
+
+####**Example** (From a book by Robert and Casella) 
+let $X\sim$ Cauchy and we want to use simulation to estimate $\tau =P(X>2)$
+
+![](graphs/vr26.png)
+
+**Method 1**: (Direct Simulation) generate $X_1, .., X_n$ iid Cauchy, estimate $\tau =1/n \sum I_{[2, \infty )}(X_i)$
+
+![](graphs/vr27.png)
+
+```{r}
+x <- rcauchy(B)
+z <- ifelse(x > 2, 1, 0)
+c(mean(z), sd(z))
+```
+
+**Method 2**: (Direct Simulation, using a special feature of the problem) Make use of the fact that a Cauchy is symmetric around 0, so
+
+$$
+P(X>2) = \frac12 P(|X|>2)
+$$
+
+so generate $X_1, .., X_n$ iid Cauchy, estimate
+
+$$
+\tau = \frac1{2n} \sum I_{[2, \infty)}(|X|_i)
+$$
+
+![](graphs/vr28.png)
+
+```{r}
+z <- ifelse(abs(x) > 2, 1, 0)/2
+c(mean(z), sd(z))
+```
+
+**Method 3**: (Direct Simulation, using a special feature of the problem) Make use of the fact that
+
+![](graphs/vr29.png)
+
+```{r}
+x <- runif(B, 0, 2)
+z <- 1/2-2/pi/(1 + x^2)
+c(mean(z), sd(z))
+```
+
+
+**Method 4**: ( Direct Simulation, using a special feature of the problem) 
+
+![](graphs/vr210.png)
+
+```{r}
+x <- runif(B, 0, 0.5)
+z <- 1/2/pi/(1 + x^2)
+c(mean(z), sd(z))
+```
+
+
+ **Method 5**: (Importance sampling) Let's use the rv Y with density $g(x)=2/x$, $x>2$. Note 
+
+![](graphs/vr211.png)
+
+so this is actually the same as Method 4, with the same variance.
+
+```{r}
+x <- runif(B)
+z <- 2/(4 + x^2)/pi
+c(mean(z), sd(z))
+```
+
+
+####**Example**
+Say we have the following problem: we have $X_1,.., X_n$ iid Pois($\lambda$) and we want to test 
+
+$H_0: \lambda = \lambda_0$ vs. $H_a: \lambda \ne \lambda_0$
+
+we decide to use a Wald-type test, that is a test based on the CLT. Of course by the CLT 
+
+$$
+T_n = \frac{ \sum X_i - n\lambda}{\sqrt{n\lambda}} \sim N(0,1)
+$$
+
+and so we have a test of the form
+
+reject $H_0$ if $|T_n|>z_{\alpha/2}$
+
+Now this is based on the CLT, and so we need to worry whether is works for our $n$ and $\lambda_0$, say $n=100$ and $\lambda_0=2.0$. Easy enough, we do a simulation:
+
+- generate rpois(100, 2.0)
+
+- calculate $T_n$ 
+
+- check whether $|T_n|>z_{\alpha/2}$
+
+- repeat B times
+
+```{r}
+alpha <- 0.05
+lambda <- 2
+n <- 100
+B <- 10^5
+x <- rpois(B, n * lambda)
+T_n = (x - n * lambda)/sqrt(n * lambda)
+sum(abs(T_n) > qnorm(1 - alpha/2))/B
+```
+
+and so the test works as it should.
+
+Note that we can use the fact that $\sum X_i \sim \text{Pois}(n \lambda)$.
+
+Now in most fields hypothesis tests are done with $\alpha =0.05$ or so. In  High Energy Physics, though, they use $\alpha =2.87 \times 10^{-7}$! (this strange number happens to be pnorm(-5), so they are looking for a "5-sigma effect") . The reason for such a small $\alpha$ is that in HEP we have a very serious simultaneous inference problem. 
+
+So now we should check whether this test still works if we use $\alpha =2.87 \times 10^{-7}$. But even if it does $|T_n|>5$ will only happen every 3.5 million runs or so ($1/\alpha$), so to get some reasonable estimate we would need $B=10^9$  or so.
+
+Let's use IS instead. Again we need to generate data from an rv where  $|T_n|>5$ happens more often. Say we use $Y \sim \text{Pois}(n \tau)$. Now
+
+$$
+\begin{aligned}
+&w(y) = \text{dpois} (y,n\lambda)/\text{dpois}(y,n\tau)\\
+&T_n = \frac{y-n\lambda}{n\lambda}\\
+&I_n(y)=1 if |T_n|>5 \text{, } 0 \text{ otherwise}\\ 
+&P(|T_n|>5) = \text{Mean}(I_n w)  
+\end{aligned}
+$$
+
+For example, if $n=100$ and $\lambda=2.0$, use $\tau=2.7$.
+
+```{r}
+tau <- 2.7
+alpha <- pnorm(-5)
+y <- rpois(B, n * tau)
+T_n <- ifelse(abs((y - n * lambda)/sqrt(n * lambda)) > qnorm(1 - alpha/2), 1, 0)
+ w <- dpois(y, n * lambda)/dpois(y, n * tau)
+alphahat = mean(w * T_n)
+c(truealpha = alphahat, sigmas = qnorm(1 - 2 * alphahat), percentage = sum(T_n)/B)
+```
+
+finds that the actual type I error probability is a about twice what  it is supposed to be. 

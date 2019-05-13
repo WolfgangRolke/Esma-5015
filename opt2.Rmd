@@ -1,0 +1,300 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Additional Topics
+
+## Optimization
+
+In this section we will study methods for finding maxima and minima of a function f. Of course the first try will always be via calculus, that is finding $f'$ and solving $f'(x)=0$. This, though, only works if the function is fairly simple and the zeros of f' can be found analytically.
+
+### Numerical Optimization
+
+If that is not the case we can try and use numerical methods. The most famous of them is the *Newton-Raphson* algorithm. It chooses a starting point $x_0$ and then iteratively calculates 
+$$
+x_n = x_{n-1} - H^{-1} \nabla 
+$$
+where $H$ is the Hessian matrix and $\nabla$ is the gradient of f evaluated at $x_{n-1}$.
+
+####**Example** 
+
+say $f(x,y)=\sin(x)+\sin(y)$, $0<x,y<\pi$ 
+
+```{r echo=FALSE}
+rm(pi)
+```
+
+```{r}
+f <- function(x, y) sin(x)+sin(y)
+x <- seq(0, pi, length=100)
+y <- x
+z <- matrix(0, 100, 100)
+for(i in 1:100) z[ ,i] <- f(x[i], y)
+persp(x, y, z)
+ij <- which(z == max(z), arr.ind = TRUE)[1, ]
+round(c(x[ij[1]], y[ij[2]], z[ij[1], ij[2]]), 2)
+```
+
+![](graphs/opt2.png)
+
+$$
+\begin{aligned}
+&f(x,y)= \sin (x)+ \sin(y) \\
+&\nabla_x = \frac{df}{dx} (x,y)= \cos(x) \\
+&\nabla_y =\frac{df}{dy} (x,y)= \cos(y) \\
+&H_{1,1} = \frac{d^2f}{dy^2} (x,y)= -\sin(y) \\
+&H_{1,2} = H_{2,1} =\frac{d^2f}{dydx} (x,y)= 0 \\
+&H_{2,2} = \frac{d^2f}{dx^2} (x,y)= -\sin(x) \\
+\end{aligned}
+$$
+
+```{r}
+newp <- c(1, 1)
+repeat {
+  oldp <- newp
+  grad <- cbind(cos(oldp))
+  H <- matrix(c(-sin(oldp[1]), 0, 0, -sin(oldp[2])), 2, 2)
+  newp <- oldp - solve(H)%*%grad
+  print(round(c(newp, f(newp[1], newp[2])), 4))
+  if(sum(abs(oldp-newp))<0.0001) break
+}
+```
+
+
+### Direct Simulation 
+
+Here we randomly pick points in some area, evaluate the function and pick the points which have the maxima
+
+####**Example** 
+$f(x,y)= \sin (x)+\sin (y)$ $0<x,y<\pi$ 
+
+```{r}
+x <- runif(100, 0, pi)
+y <- runif(100, 0, pi)
+z <- matrix(0, 100, 100)
+for(i in 1:100) z[ ,i] <- f(x[i], y)
+ij <- which(z == max(z), arr.ind = TRUE)[1, ]
+round(c(x[ij[1]], y[ij[2]], z[ij[1], ij[2]]), 4)
+```
+
+**Example** 
+consider the function 
+$$
+f(x)=[ \cos (50x) + \sin (20x)]^2\text{, }x \in [0,1]
+$$
+
+```{r}
+f <- function(x) (cos(50*x) + sin(20*x))^2
+curve(f, 0, 1, n=500)
+```
+
+we see it has many maxima and minima. Here using Newton-Raphson is almost certainly going to fail because the starting point would have to be almost at the maximum. 
+
+```{r}
+B <- 1e4
+x <- runif(B)
+y = f(x)
+plot(x, y, pch = ".")
+round(c(x[y == max(y)], max(y)), 2)
+```
+
+This does work, but we do need a lot of U's because the peak at the maximum is very sharp.
+
+Here is another idea: 
+
+Because f is a continuous function on a finite interval there exists a constant c such that $c \cdot f$ is a density. 
+
+Moreover using the Hastings-Metropolis algorithm we don't even need to know c. 
+
+One problem is to extract the maximum from the generated data. We can use a histogram to estimate the density and pick the maximum. In general a non-parametric density estimator would be better and would need far fewer points.
+
+```{r}
+B <- 1e4
+Xn <- rep(0, B)
+Xn[1] <- 0.5
+for (i in 2:B) {
+  X <- runif(1)
+  if (runif(1) < f(X)/f(Xn[i-1])) 
+    Xn[i] = X
+  else Xn[i] = Xn[i-1]
+}
+hist(Xn[1000:B], breaks = 100, freq = FALSE, main="")
+curve(f, 0, 1, add=TRUE)
+a <- hist(Xn[100:B], plot = FALSE)
+a$breaks[which.max(a$counts)]
+```
+
+####**Example**  
+Consider the function
+$$
+\begin{aligned}
+f(x,y)=&\\
+&(x \sin(20y)+y \sin(20x))^2 \cosh( \sin(10x)x)+\\
+&(x \cos(10y)-y \sin(10x)^2 \cosh( \cos(20y)y) \\
+&-1 < x,y <1
+\end{aligned}
+$$
+
+```{r}
+f <- function(x, y) 
+    (x*sin(20*y) + y*sin(20*x))^2 * acos(sin(10*x)*x) + 
+    (x*cos(10*y) - y*sin(10*x))^2 * acos(cos(20*y)*y)
+n <- 250
+x <- seq(-1, 1, length = n)
+y <- x
+z <- matrix(0, n, n)
+for (i in 1:n) z[i, ] = f(x[i], y)
+persp(x, y, z, theta = 100)
+```
+
+using the simple simulation approach is easy:
+```{r}
+B <- 1e4
+x <- runif(B, -1, 1)
+y <- runif(B, -1, 1)
+z <- f(x, y)
+I <- c(1:B)[which.max(y)]
+round(c(x[I], y[I], z[I]), 2)
+```
+
+The solution via the histogram/non-parametric density estimate again is doable but needs a bit of work.
+
+### Simulated Annealing
+
+this algorithm was actually also introduced by Metropolis, in the same 1953 paper where he first showed the "Metropolis" version of the Metropolis-Hastings algorithm. The fundamental idea is that a change of scale, called *temperature*, allows for faster moves on the surface of the function f to maximize, whose negative is called the energy.
+
+Therefore rescaling partially avoids the trapping of the algorithm in local minima/maxima. Given a temperature parameter T0 a sample of
+
+$\theta_1(T)$, $\theta_2(T)$,.. 
+
+is generated from the distribution 
+$$
+\pi( \theta)=c \cdot \exp(f(\theta)/T)
+$$
+Notice that
+
+$$
+\begin{aligned}
+&\pi'( \theta)=c \cdot \exp(f(\theta)/T)f'(\theta)/T=0\\
+&\text{iff}\\
+&f'(\theta)=0
+\end{aligned}
+$$
+
+so $\pi (\theta)$ has a maximum iff $f( \theta)$ has a maximum.
+
+Moreover even if $\int f(x)dx=\infty$, $\int \exp(f(x))dx$ is often finite and so there exists a constant c which makes $\pi$ a density.
+
+Here is one popular version of the simulated annealing algorithm:
+
+1) simulate Y from a distribution with the same support as f, say with density $g(|y-\theta_i|)$ 
+
+2) accept $\theta_{i+1}=Y$ with probability
+$$
+p=\min\left\{\exp[(f(Y)-f(\theta_i))/T_i), 1 \right\}
+$$
+take $\theta_{i+1}=\theta_i$ otherwise
+
+3) update $T_i$ to $T_{i+1}$
+
+Notice the similarities between this algorithm and the Hastings-Metropolis one: in each case we draw observations from a "proposal distribution" which depends on the current state x, and accept it as a new observation for X with a certain probability. 
+
+**Example**
+
+$f(x)=[\cos(50x)+\sin(20x)]^2$ on [0,1]. For this one implementation of the algorithm is as follows:
+
+at iteration i the algorithm is at $(x^i, f(x^i))$  
+
+1) simulate $U \sim U[a^i, b^i]$ where $a^i=\max(x^i-0.5, 0)$ and $b^i=\min(x^i+0.05, 1)$
+
+2) accept $x^{i+1}=U$ with probability
+
+$p^i=\min\left\{\exp[(f(U)-f(x^i))/T_i], 1\right\}$
+
+otherwise set $x^{i+1}=x^i$
+
+3) set $T^{i+1}=1/log(i+1)$
+
+```{r}
+f = function(x) (cos(50*x) + sin(20*x))^2   
+B <- 1e4
+x <- rep(0.5, B)
+y <- rep(f(x[1]), B)
+M <- c(x[1], y[1])
+plot(c(0, 1), c(0, 5), 
+     type = "n", xlab = "x", ylab = "f")
+for (i in 2:B) {
+  U <- runif(1, max(x[i-1]-0.5, 0), min(x[i-1]+0.5, 1))
+  y[i] <- f(U)
+  p <- min(exp((y[i] - y[i-1])* log(i+1)), 1)
+  if(runif(1) < p) 
+     x[i] <- U
+  else {
+    x[i] <- x[i-1]
+    y[i] <- y[i-1]
+  }
+  if(y[i]>M[2]) 
+      M <- c(x[i], y[i])
+      segments(x[i-1], y[i-1], x[i], y[i])
+  }
+M
+```
+
+
+
+####**Example** 
+$$
+\begin{aligned}
+f(x,y)=&\\
+&(x \sin(20y)+y \sin(20x))^2 \cosh( \sin(10x)x)+\\
+&(x \cos(10y)-y \sin(10x)^2 \cosh( \cos(20y)y) \\
+&-1 < x,y <1
+\end{aligned}
+$$
+
+```{r}
+f <- function(x, y) 
+    (x*sin(20*y) + y*sin(20*x))^2 * acos(sin(10*x)*x) + 
+    (x*cos(10*y) - y*sin(10*x))^2 * acos(cos(20*y)*y)
+f_opt <- function(start, eps = 0.025) { 
+  x <- rep(start[1], B)
+  y <- rep(start[2], B)
+  fun <- rep(f(x[1], y[1]), B)
+  M <- c(x[1], y[1], fun[1])
+  plot(c(-1, 1), c(-1, 1), type = "n", xlab = "x", ylab = "f")
+  for (i in 2:B) {
+    U1 <- runif(1, max(x[i-1]-0.1, -1), min(x[i-1]+0.1, 1))
+    U2 <- runif(1, max(y[i-1]-0.1, -1), min(y[i-1]+0.1, 1))
+    fun[i] <- f(U1, U2)
+    p <- min(exp((fun[i]-fun[i-1])*eps*log(i+1)), 1)
+    if(runif(1)<p) {x[i] <- U1; y[i] <- U2}
+    else {
+        x[i] <- x[i-1]
+        y[i] <- y[i]
+        fun[i] <- fun[i-1]
+      }
+      if(fun[i]>M[3]) 
+      M <- c(x[i], y[i], fun[i])
+      segments(x[i-1], y[i-1], x[i], y[i])
+    }
+  M
+}
+f_opt(c(-0.5, -0.5))
+f_opt(c(-0.5, 0.5))
+f_opt(c(0.5, -0.5))
+f_opt(c(0.5, 0.5))
+f_opt(c(-0.99, -0.95), eps=0.1)
+```
+Different values of eps change the temperature T. Also, rerunning the routine from different starting points is often a good idea!

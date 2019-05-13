@@ -1,0 +1,125 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+
+## A Realistic Example
+
+Note that in the following we use the definition 
+$$
+f(x)=1/\lambda \exp(-x/\lambda)
+$$
+for the exponential. So the best estimator for the rate (the maximum likelihood estimator) is $\overline X$.
+
+Say we have the following problem: we have a data set, in **expdata**, which we suspect is from an exponential distribution. How can we make sure of that? First off we need to do a few checks:
+```{r, echo=FALSE}
+set.seed(115)
+expdata <- rexp(500, 0.5)
+```
+
+
+### Graphical
+
+First we draw the histogram and the empirical cdf, both with the respective exponential curves, using the sample mean as the rate. 
+
+```{r}
+n <- length(expdata)
+lambdahat <- mean(expdata)
+hist(expdata, 25, freq = FALSE, main = "")
+f <- function(x) 1/lambdahat*exp(-x/lambdahat)
+curve(f, 0, max(expdata), 
+      lwd=2, col="blue", add = TRUE)
+```
+
+```{r}
+plot(ecdf(expdata))
+F <- function(x) 1-exp(-x/lambdahat)
+curve(F, 0, max(expdata), 
+      lwd=1, col="blue", add = TRUE)
+```
+
+
+The curves appear to be close, but it is difficult to tell just how close.
+
+### Testing
+
+Next we carry out some hypothesis tests, with $H_0: X_i \sim$  Exponential
+
+-  Chisquare
+
+The data is continuous, so we need to bin it. There are a number of decisions we need to make, all of them might influence the outcome of the test:
+
+- what type of bins? Let's use adaptive binning (about equally many observations in each bin)
+
+- how many bins? Let's pick 10, not for any good reason at all!
+
+```{r}
+nbins <- 10
+bins <- c(0, quantile(expdata, prob = (1:(nbins - 1))/nbins), max(expdata) + 1)
+O <- hist(expdata, breaks = bins, plot = FALSE)$counts
+E <- length(expdata)*diff(F(bins))
+chisq <- sum((O - E)^2/E)
+out <- round(c(chisq, 1 - pchisq(chisq, nbins - 2)), 4)
+names(out) <- c("Chisquare", "p-value")
+out
+```
+
+
+-  KS test
+
+Here the main problem is that we have to estimate the rate $\lambda$, so the calculation of the p-value done by **ks.test** is no good.
+
+Instead we will use simulation as follows:
+
+- Generate x' <- rexp(500, $\overline X$)
+
+- find KS statistic for x', using 1/mean(x') as rate
+
+- repeat 1000 times
+
+- p-value is percentage of simulated KS statistics greater than that of data.
+
+```{r}
+KS.data <- ks.test(expdata, "pexp", rate = lambdahat)$statistic
+KS.sim <- rep(0, 1000)
+for(i in 1:1000) {
+    x.prime <- rexp(n, lambdahat)
+    KS.sim[i] <- ks.test(x.prime, "pexp", rate = 1/mean(x.prime))$statistic
+}
+out <- round(c(KS.data, length(KS.sim[KS.sim > KS.data])/1000), 4)
+names(out) <- c("KS.test", "p-value")
+out
+```
+
+
+Now we have a problem: the chisquare test says the data may well be from an exponential rv (p-value=0.701) whereas the KS test says no (p-value=0.000). Who do we believe?
+
+### Power Study
+
+What we need to do is a study of the power of these tests. That is we need to answer the question: if the data is not from an exponential distribution, how likely are these tests to tell us? The idea is simple: generate data from a rv not exponential, and see what the tests say. In practice, though this is very difficult, there are unaccountably many distributions to pick from. In real live we need to decide which distribution(s) we are most worried about, and test against those. Let's say we worry about the data really being from a gamma distribution, after all, the exponential is a special case of the gamma. So we will do the following:
+
+- generate $X \sim \text{Gamma} (\alpha, \beta)$
+
+- find the p-values of the chisquare and the KS-test for X, just as above
+
+- repeat many times and check the percentage the tests reject the null hypothesis.
+
+Now if $\alpha=1$, $H_0$ is true and the powers should be around 0.05, the farther away from 1, the closer to 1 the powers should be. In the next graph we have the power curves:
+
+
+![](graphs/stat31.png)
+
+
+So we see that the KS test has greater power against a Gamma alternative, so if that is what we are worried about we should indeed reject the null hypothesis.

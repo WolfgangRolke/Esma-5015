@@ -1,0 +1,175 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Conditional Probability and Independence
+
+In a study of heart disease in male federal employees, researchers classified 356 volunteer subjects according to their socioeconomic status (SES - coded as Low, Middle, High) and their smoking status (Smoking - coded as Never, Former and Current). 
+
+Here is the data:
+
+![](graphs/prob21.png)
+
+What is the probability that a randomly selected volunteer in this study is a former smoker with a high socioeconomic status?
+
+Answer is easy (92/356) but let's do this slowly:
+
+Event A = "Former Smoker"
+Event B = "high socioeconomic status"
+
+$$P(A \cap B) = \frac{92}{356}$$
+
+What is the probability that a randomly selected volunteer in this study is a former smoker?
+
+$$P(A) = \frac{141}{356}$$
+
+If we know that a randomly selected volunteer is a former smoker, what is the probability that he also has a high socioeconomic status?
+
+Again the answer is clear: 92/141
+
+This kind of probability is called a **conditional** probability. We use the notation P(high|former) = P(B|A). Note:
+
+$$P(A|B) =\frac{92}{141} = \frac{92/356}{141/356} = \frac{P(A \cap B)}{P(B)}$$ 
+
+
+In general we can find conditional probabilities using the formula
+
+$$P(A|B) = \frac{P(A \cap B)}{P(B)}$$ 
+
+
+Note: this only works if P(B)>0
+
+### Multiplication Rule
+
+A simple manipulation of the equation above yields
+
+$$P(A \cap B) = P(A|B)P(B)$$
+
+#### **Example**
+
+You draw  two cards from a standard 52-card deck. What is the probability to draw 2 Aces?
+
+Solution:
+
+Let A = "First card drawn is an ace"  
+Let B = "Second card drawn is an ace"
+
+Then
+
+![](graphs/prob27.png)
+
+It's easy to extend this to more than two events: What is the probability of drawing 4 aces when drawing 4 cards?
+
+Let A~i~ = i^th^ card drawn is an ace"
+
+Then
+
+![](graphs/prob28.png)
+
+even a little more complicated: In most Poker games you get in the first round 5 cards (Later you can exchange some you don't like but we leave that out). What is the probability that you get 4 aces?
+
+Again let $A_i = i^{th}$ card drawn is an ace"
+
+Then
+
+![](graphs/prob29.png)
+
+### Law of Total Probability and Bayes Rule
+
+A set of events $\{A_i\}$ is called a **partition** of the sample space if
+
+$$
+\begin{aligned}
+&A_i \cap A_j    = \emptyset \text{ if }i \ne j\\
+&\bigcup_{i=1}^{n}A_i    = S
+\end{aligned}
+$$
+
+#### **Example** 
+
+a student is selected at random from all the undergraduate students at the Colegio
+
+A~1~ = "Student is female",  A~2~ = "Student is male"
+
+or maybe
+
+A~1~ = "Student is freshman",  .., A~4~ = "Student is senior"
+
+Let B be any event, then the law of total probability says
+
+$$P(B)= \sum_{i=1}^n P(B|A_i)$$
+
+
+#### **Example** 
+
+A company has 452 employees, 210 men and 242 women. 15% of the men and 10% of the women have a managerial position. What is the probability that a randomly selected person in this company does **not** have a managerial position?
+
+
+Let A~1~ = "person is female",  A<sub>2</sub> = "person is male"
+
+Let B = "person has a managerial position"
+
+Then
+
+![](graphs/prob212.png)
+
+This is also part of Bayes' Rule:
+
+$$P(A_k|B) =\frac{P(B|A_k)P(A_k)}{\sum_{i=1}^n P(B|A_i)}$$
+
+
+Notice that the denominator is just the law of total probability.
+
+
+#### **Example** 
+
+In the company above a person is randomly selected, and that person is in a managerial position. What is the probability the person is female?
+
+![](graphs/prob215.png)
+
+####**Example**
+
+A company has received three shipments, one each from three different suppliers. The shipment from company 1 contained 37 parts, the one from company 2 had 25 parts and the one from company 3 had 20 parts. An employee randomly selected one part from each shipment and tested it. It turned out one of them was bad. Unfortunately he did not pay attention which part came from which company. From previous experience we know that a part made by company 1 is faulty with probability 0.043. For company 2 the probability is 0.033 and for company 3 it is 0.027.  What is the probability that the bad part came from company 2?
+
+ Let A~i~ = "part was made by company i"
+
+B = "part is bad"
+
+![](graphs/prob220.png)
+
+Bayes' Rule plays a very important role in Statistics and in Science in general. It provides a natural method for updating you knowledge based on data. 
+
+### Independence
+
+Sometimes knowing that one event occured does not effect the probability of another event. For example if you throw a red and a blue die, knowing that the red die shows a "6" will not change the probability that the blue die shows a "2".
+
+Formally we have 
+
+$$P(A | B) =P(A)$$
+
+
+or using the multiplication rule we get the better formula for two independent events
+
+$$P(A \cap B) =P(A)P(B)$$
+
+####**Example** 
+
+Say you flip a fair coin 5 times. What is the probability of 5 "heads"?
+
+Let A~i~ = i^th^ flip is heads
+
+Now it is reasonable to assume that the A~i~'s are independent and so
+
+![](graphs/prob219.png)

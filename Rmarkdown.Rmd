@@ -1,0 +1,237 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## R Markdown, HTML and Latex
+
+### R Markdown
+
+R Markdown is a program for making dynamic documents with R. An R Markdown document is written in *markdown*, an easy-to-write plain text format with the file extension .Rmd. It can contain chunks of embedded R code. It has a number of great features:
+
+-  easy syntax for a number of basic objects  
+-  code and output are in the same place and so are always synced  
+-  several output formats (html, latex, word)
+
+In recent years I (along with many others) who work a lot with R have made Rmarkdown the basic way to work with R. So when I work on a new project I immediately start a corresponding R markdown document. 
+
+`r hl()$hr()`
+
+to start writing an R Markdown document open RStudio, File > New File > R Markdown. You can type in the title and some other things.
+
+The default document starts like this:
+
+\-\-\-  
+title: "My first R Markdown Document"  
+author: "Dr. Wolfgang Rolke"  
+date: "April 1, 2018"  
+output: html_document  
+\-\-\-
+
+This follows a syntax called YAML (also used by other programs). There are other things that can be put here as well, or you can erase all of it.
+
+YAML stands for *Yet Another Markup Language*. It has become a standard for many computer languages to describe different configurations. For details go to [yaml.org](http://yaml.org)
+
+Then there is other stuff you should erase. Next File > Save. Give the document a name with the extension .Rmd
+
+### Basic R Markdown Syntax
+
+for a list of the basic syntax go to
+
+[https://rmarkdown.rstudio.com/articles_intro.html](https://rmarkdown.rstudio.com/articles_intro.html) 
+
+or to 
+
+[https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
+
+
+### Embedded Code
+
+There are two ways to include code chunks (yes, that's what they are called!) into an R Markdown document:
+
+####  **stand alone code**
+
+simultaneously enter CTRL-ALT-i and you will see this:
+
+
+\```{r}
+
+\```
+
+Here ` is the *backtick*, on most keyboards on the key in
+the upper left below Esc.
+
+you can now enter any R code you like:
+
+\```{r}  
+x <- rnorm(10)  
+mean(x)  
+\```
+
+which will appear in the final document as
+
+```{r eval=FALSE}
+x <- rnorm(10)
+mean(x)
+```
+
+Actually, it will be like this:
+
+```{r}
+x <- rnorm(10)
+mean(x)
+```
+
+so we can see the result of the R calculation as well. The reason it didn't appear like this before was that I added the argument eval=FALSE:
+
+\```{r eval=FALSE}  
+x <- rnorm(10)  
+mean(x)  
+\```
+
+which keeps the code chunk from actually executing (aka *eval*uating). This is useful if the code takes along time to run, or if you want to show code that is actually faulty, or ...
+
+there are a number of useful arguments:
+
+-  eval=FALSE  (shows but doesn't run the code)  
+-  echo=FALSE  (the code chunk is run but does not appear in the document)  
+-  warning=FALSE  (warnings are not shown)  
+-  message=FALSE (messages are not shown)  
+-  cache=TRUE  (code is run only if there has been a change, useful for lengthy calculations)  
+-  error=TRUE  (if there are errors in the code R normally terminates the parsing (executing) of the markdown document. With this argument it will ignore the error, which helps with debugging)  
+
+
+####  **inline code** 
+
+here is a bit of text:
+
+... and so the mean was `r mean(x)`.
+
+Now I didn't type in the number, it was done with the chunk `` `r
+mean(x)` ``.
+
+`r hl()$hr()`
+
+Many of these options can be set globally, so they are active for the whole document. This is useful so you don't have to type them in every time. I have the following code chunk at the beginning of all my Rmd files:
+
+```{r eval=FALSE}
+library(knitr)
+opts_chunk$set(fig.width=6, fig.align = "center", 
+      out.width = "70%", warning=FALSE, message=FALSE)
+```
+
+We have already seen the message and warning options. The other one puts any figure in the middle of the page and sizes it nicely.
+
+If you have to override these defaults just include that in the specific chunk.
+
+### Creating Output
+
+To create the output you have to "knit" the document. This is done by clicking on the *knit* button above. If you click on the arrow you can change the output format.
+
+### HTML vs Latex(Pdf)
+
+In order to knit to pdf you have to install a latex interpreter. My suggestion is to use [Miktex](https://miktex.org/), but if you already have one installed it might work as well.
+
+There are several advantages / disadvantages to each output format:
+
+-  HTML is much faster  
+-  HTML looks good on a webpage, pdf looks good on paper  
+-  HTML needs an internet connection to display math, pdf does not  
+-  HTML can use both html and latex syntax, pdf works only with latex (and a little bit of html)
+
+I generally use HTML when writing a document, and use pdf only when everything else is done. There is one problem with this, namely that a document might well knit ok to HTML but give an error message when knitting to pdf. Moreover, those error messages are weird! Not even the line numbers are anywhere near right. So it's not a bad idea to also knit to pdf every now and then.
+
+As far as this class is concerned, we will use HTML exclusively.
+
+### Tables
+
+One of the more complicated things to do in R Markdown is tables. For a nice illustration look at
+
+[https://stackoverflow.com/questions/19997242/simple-manual-rmarkdown-tables-that-look-good-in-html-pdf-and-docx](https://stackoverflow.com/questions/19997242/simple-manual-rmarkdown-tables-that-look-good-in-html-pdf-and-docx)
+
+My preference is to generate a data frame and the use the *kable.nice* function:
+
+```{r}
+Gender <- c("Male", "Male", "Female")
+Age <- c(20, 21, 19)
+kable.nice(data.frame(Gender, Age))
+```
+
+probably with the argument echo=FALSE so only the table is visible.
+
+### LATEX
+
+You have not worked with latex (read: latek) before? Here is your chance to learn. It is well worthwhile, latex is the standard document word processor for science. And once you get used to it, it is WAY better and easier than (say) Word. 
+
+A nice list of common symbols is found on [https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols](https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols).
+
+
+#### **inline math**
+
+A LATEX expression always starts and ends with a \$ sign. So this line:
+
+The population mean is defined by $E[X] = \int_{-\infty}^{\infty} xf(x) dx$.
+
+was done with the code
+
+
+The population mean is defined by \$E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx\$.
+
+#### **displayed math**
+
+sometimes we want to highlight a piece of math:
+
+The population mean is defined by
+
+$$
+E[X] = \int_{-\infty}^{\infty} xf(x) dx    
+$$
+this is done with two dollar signs:
+```{r, echo=FALSE, comment=NA}
+txt <- c(" $$\n",
+         "E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx\n",
+          "$$"
+         )
+cat(txt)
+```
+
+
+
+#### **multiline math**
+
+say you want the following in your document:
+
+$$
+\begin{aligned}
+&E[X] = \int_{-\infty}^{\infty} xf(x) dx    = \\
+&\int_{0}^{1} x dx    = \frac12 x^2 |_0^1 = \frac12
+\end{aligned}
+$$
+
+for this to display correctly in HTML and PDF you need to use the format
+
+```{r, echo=FALSE, comment=NA}
+txt <- c(" $$\n",
+         "\\begin{aligned}\n",
+         "&E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx=\\\\ \n",
+         "&\\int_{0}^{1} x dx    = \\frac12 x^2 |_0^1 = \\frac12 \n",
+          "\\end{aligned}\n",
+          "$$"
+         )
+cat(txt)
+```
+
+
+
+
+

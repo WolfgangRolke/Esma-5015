@@ -1,0 +1,289 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## R Basics II - Writing Functions
+
+###  General Information
+
+In R/RStudio you have several ways to write your own functions:
+
+-  In the R console type 
+
+```{r eval=FALSE}
+myfun <- function(x) {
+  out <- x^2
+  out
+}  
+```
+
+-  RStudio: click on File > New File > R Script. A new empty window pops up. Type fun, hit enter, and  the following text appears:
+
+name <- function(variables) {
+
+}
+
+change the name to *myfun*, save the file as myfun.R with File > Save. Now type in the code. When done click the Source button. 
+
+-  fix: In the R console run 
+
+```{r eval=FALSE}
+fix(myfun)
+```
+
+now a window with an editor pops up and you can type in the code. When you are done click on Save. If there is some syntax error DON'T run fix again, instead run
+
+```{r eval=FALSE}
+myfun <- edit()
+```
+
+*myfun* will exist only until you close R/RStudio unless you save the project file. 
+
+-  Open any code editor outside of RStudio, type in the code, save it as myfun.R, go to the console and run 
+
+```{r eval=FALSE}
+source('../some.folder/myfun.R')
+```
+
+Which of these is best? In large part that depends on your preferences. In my case, if I expect to need that function just for a bit I use the fix option. If I expect to need that function again later I start with the first method, but likely soon open the .R file outside RStudio because most code editors have many useful features not available in RStudio.
+
+If *myfun* is open in RStudio there are some useful keyboard shortcuts. If the curser is on some line in the RStudio editor you can hit
+
+-  CTRL-Enter run current line or section  
+-  CTRL-ALT-B run from beginning to line  
+-  CTRL-Shift-Enter run complete chunk 
+-  CTRL-Shift-P rerun previous
+
+### Testing
+
+As always you can test whether an object is a function:
+
+```{r}
+x <- 1
+f <- function(x) x
+is.function(x)
+is.function(f)
+```
+
+### Arguments
+
+There are several ways to specify arguments in a function:
+
+```{r}
+calc.power <- function(x, y, n=2) x^n + y^n
+```
+
+here n has a *default value*, x and y do not.
+
+if the arguments are not named they are matched in order:
+
+```{r}
+calc.power(2, 3) 
+```
+
+If an argument does not have a default it can be tested for 
+
+```{r}
+f <- function(first, second) {
+  if(!missing(second))
+      out <- first + second
+  else out <- first
+  out
+}
+f(1)
+f(1, s=3)
+```
+
+There is a special argument ..., used to pass arguments on to other functions:
+
+```{r}
+f <- function(x, which, ...) {
+  f1 <- function(x, mult) mult*x 
+  f2 <- function(x, pow) x^pow
+  if(which==1)
+    out <- f1(x, ...)
+  else
+    out <- f2(x, ...)
+  out
+}
+f(1:3, 1, mult=2)
+f(1:3, 2, pow=3)
+```
+
+This is one of the most useful programming structures in R!
+
+**Note** this example also shows that in R functions can call other functions. In many computer programs there are so called *sub-routines*, in R this concept does not exist, functions are just functions.
+
+### Return Values
+
+A function can either return nothing or exactly one thing. It will automatically return the last object evaluated:
+
+```{r}
+f <- function(x) {
+  x^2
+}
+f(1:3)
+```
+
+however, it is better programming style to have an explicit return object:
+
+```{r}
+f <- function(x) {
+  out <- x^2
+  out
+}
+f(1:3)
+```
+
+There is another way to specify what is returned:
+
+```{r}
+f <- function(x) {
+  return(x^2)
+}
+f(1:3)
+```
+
+but this is usually used to return something early in the program:
+
+```{r}
+f <- function(x) {
+  if(!any(is.numeric(x)))
+    return("Works only for numeric!")
+  out <- sum(x^2)
+  out
+}
+f(1:3)
+f(letters[1:3])
+```
+
+If you want to return more than one item use a list:
+
+```{r}
+f <- function(x) {
+  sq <- x^2
+  sm <- sum(x)
+  list(sq=sq, sum=sm)
+}
+f(1:3)
+```
+
+
+### Basic Programmming Structures in R
+
+R has all the standard programming structures:
+
+#### Conditionals (if-else)
+
+```{r}
+f <- function(x) {
+  if(x>0) y <- log(x)
+  else y <- NA
+  y
+}
+f(c(2, -2))
+```
+
+A useful variation on the *if* statement is *switch*:
+
+```{r}
+centre <- function(x, type) {
+  switch(type,
+         mean = mean(x),
+         median = median(x),
+         trimmed = mean(x, trim = .1))
+}
+x <- rcauchy(10)
+centre(x, "mean")
+centre(x, "median")
+centre(x, "trimmed")
+```
+
+special R construct: *ifelse*
+
+```{r}
+x <- sample(1:10, size=7, replace = TRUE)
+x
+ifelse(x<5, "Yes", "No")
+```
+
+#### Loops
+
+there are two standard loops in R:
+
+-  for loop
+
+```{r}
+y <- rep(0, 10)
+for(i in 1:10) y[i] <- i*(i+1)/2
+y
+```
+
+sometimes we don't know the length of y ahead of time, then we can use
+
+```{r}
+for(i in seq_along(y)) y[i] <- i*(i+1)/2
+y
+```
+
+If there is more than one statement inside a loop use curly braces:
+
+```{r}
+for(i in seq_along(y)) {
+  y[i] <- i*(i+1)/2
+  if(y[i]>40) y[i] <- (-1)
+}
+y
+```
+
+You can nest loops:
+
+```{r}
+A <- matrix(0, 4, 4)
+for(i in 1:4) {
+  for(j in 1:4)
+    A[i, j] <- i*j
+}
+A
+```
+
+
+-  repeat loop
+
+
+```{r}
+k <- 0
+repeat {
+  k <- k+1
+  x <- sample(1:6, size=3, replace=TRUE)
+  if(length(table(x))==1) break
+}
+k
+```
+
+Notice that a repeat loop could in principle run forever. I usually include a counter that ensures the loop will eventually stop:
+
+```{r}
+k <- 0
+counter <- 0
+repeat {
+  k <- k+1
+  counter <- counter+1
+  x <- sample(1:6, size=3, replace=TRUE)
+  if(length(table(x))==1 | counter>1000) break
+}
+k
+```
+

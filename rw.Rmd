@@ -1,0 +1,393 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## The Symmetric Random Walk in R^d^
+
+The symmetric random walk in R^d^ is one of the classic stochastic processes. It works as follows: Let S~d~ be the integer lattice in R^d^, that is 
+
+S~d~= {(i~1~,..,i~d~): i~k~$\in$Z} 
+
+and for the process {X~n~,n=1,2,..} we have 
+
+P(X~n+1~= (i~1~,..,i~d~) | X~n ~= (j~1~,..,j~d~)) = 1/(2d) 
+
+if $i_k=j_k\pm 1$ for one k=1,..,d and i~l~=j~l~ for all l=1,..,d, $l\ne k$
+
+In other words if X~n~ is at some point of the lattice it randomly chooses a neighboring point and moves there.
+
+Here is an illustration for d=2:
+
+```{r}
+rw2.plot<- function(A=100) {
+    cols <- c("black", "blue", "green", "red")
+    plot(c, xlim=c(-A, A), ylim=c(-A, A), type="n")
+    for(k in 1:4) {
+      x <- c(0, 0) 
+      repeat {
+        y <- x + sample(c(-1, 1), size=2, replace=TRUE)
+        segments(x[1], x[2], y[1], y[2], col=cols[k])
+        x <- y
+        if(sum(abs(y))>=100) break
+      }
+    }
+}
+rw2.plot()
+```
+
+
+There are a lot of interesting questions one can investigate for the random walk. We will consider the following: Let N~d,A~ be the first time that the process, having started at the origin, is a distance A from the origin. What is E[N~d,A~]? 
+
+"Distance" here is defined as the minimum number of jumps needed to get back to the origin. Say we are at the point (i~1~,..,i~d~), then it is easy to see that the distance is
+
+D = |i~1~|+...+|i~d~|
+
+It is always a good idea to start with a simple case, so let's look at d=1. Here it is very easy way to generate an observation:
+
+```{r, eval=FALSE}
+x <- 0 
+n <- 0
+repeat {
+  n <- n+1
+  x <- x+sample(c(-1,1), 1)
+  if(abs(x)>=A) break
+}
+```
+
+and this is done for M=10^4^  in 
+
+```{r}
+rwd1 <-
+function (which = 1, A = 5, M = 10000) 
+{
+    tm <- proc.time()
+    N <- rep(0, M)
+    if (which == 1) {
+        for (i in 1:M) {
+            x <- 0
+            repeat {
+                N[i] <- N[i] + 1
+                x <- x + sample(c(-1, 1), 1)
+                if (abs(x) == A) 
+                  break
+            }
+        }
+    }
+    if (which == 2) {
+        for (i in 1:M) {
+            x0 <- 0
+            repeat {
+                x <- x0 + cumsum(sample(c(-1, 1),
+                                        size = 4*A,
+                                        replace = TRUE))
+                if (max(abs(x)) >= A) 
+                  break
+                x0 <- x[4 * A]
+                N[i] <- N[i] + 4 * A
+            }
+            N[i] <- N[i] + seq_along(x)[abs(x) == A][1]
+        }
+    }
+    if (which == 3) {
+        for (i in 1:M) {
+            N[i] <- rwd1C(A)
+        }
+    }
+    if (which == 4) 
+        N <- rwd1aC(A, M)
+    print(proc.time() - tm)
+    mean(N)
+}
+rwd1()
+```
+
+But there is a problem: even for just  A=5 and M=10^4^ this takes quite a while. 
+
+We probably should use M=10^5^, and we need to run this for for (say)  A=2:1:100, so this just is way to slow.
+
+How can we speed things up? I will discuss four possible improvements:
+
+### Do the Math!  
+
+In general the best way to go is to do as much as possible theoretically. So we should really get a good book about Stochastic Processes and see what we can find. 
+
+### Improve your R Routine
+
+R is a fantastic language for writting programs, but it is not very fast. Still there are a number of tricks we can use to improve performance:
+
+-  Vectorize!
+
+One major source of slow R are loops, and we actually have two of them, nested. So first we should try to get rid of some. Our inner loop looks like this:
+
+```{r, eval=FALSE}
+repeat {
+  N[i]=N[i]+1
+  x=x+sample(c(-1,1),1)
+  if(sum(abs(x))==A) break
+}
+```
+
+Let's try the following: we find a  sequence of $\pm 1$'s, and use cumsum to get x. If $|x|\ge A$ we find where that happens the first time (=N), otherwise generate another sequence and "add" it. Here is the routine:
+
+```{r, eval=FALSE}
+x0 <- 0 
+repeat {
+  x <- x0 + cumsum(sample(c(-1,1), size=4*A, replace=TRUE)) 
+  if(max(abs(x)) >= A) break 
+  x0 ,- x[4*A]
+  N[i] <- N[i]+4*A
+} 
+N[i] <- N[i] + seq_along(x)[abs(x)==A][1]
+```
+
+this is done in *rwd1(2)*, and this is almost 10 times faster!
+
+Notice I generate sequences of length 4A, one could play around with this and likely find an even better choice.
+
+-  Parallelize! 
+
+Many of today's computers have multiple cores (processors), but generally only one is used at a time. Also, simulation problems are usually *embarrasingly parallel*, that is they do the same thing (with different random numbers) over and over again. So we can speed up calculation by doing parallel processing. On a Windows machine, this is done using the "snow" library: 
+
+```{r, eval=FALSE}
+library(snow)
+cl <- makeCluster(rep("localhost",6), type = "SOCK")
+clusterCall(cl, rwd1, which=2, M=1e5)
+stopCluster(cl)
+```
+
+
+There is a lot of overhead in calling all the processors, so this is worth it only for routines that take at least a few minutes to run. 
+
+-  Rcpp
+
+Finally often we can speed things up dramatically by changing parts of the routine to C++. Let's look again at the inner loop:
+
+```{r, eval=FALSE}
+x <- 0 
+n <- 0
+repeat {
+  n <- n+1
+  x <- x+sample(c(-1,1), 1)
+  if(abs(x)>=A) break
+}
+```
+
+It is easy to turn this into a C++ routine. We need to
+
+- every variable is declared explicitly 
+
+- in C++ repeat is called do
+
+- Rcpp has no sample command, so we use runif()<0.5  
+
+- make sure every line ends with ;
+
+with this the code in C++ looks like this:
+
+```{r, eval=FALSE}
+int k=0;
+  int z=0;
+NumericVector u;
+do {
+  &nbsp;&nbsp;&nbsp;k++;
+  &nbsp;&nbsp;&nbsp;u=runif(1);
+  &nbsp;&nbsp;&nbsp;if(u[0]<0.5) z--;
+  &nbsp;&nbsp;&nbsp;else z++; 
+  } while (abs(z)<A); 
+return k;
+```
+
+
+Finally we need to add the usual stuff on top and save all of it in a file with the .cpp extension.
+
+To make it available in R do
+
+```{r, eval=FALSE}
+library(Rcpp) 
+sourceCpp(paste(getwd(),"/rwd1.cpp",sep=""))
+```
+
+and it is run with *rwd1(3)*.
+
+It turns out to be almost 4 times faster than rwd1(2)!
+
+We can go another step and also replace the outer for loop, done in rwd1a.cpp and run with rwd1(4).
+
+So compared to the first routine rwd1(1) rwd1(4) is about **75** times faster!
+
+### R^d^
+
+Having written the basic routine in R, it is easy to change it to work in R^d^. All we need to do is now first pick a coordinate and then do $\pm 1$ that coordinate.
+
+Running *rwd*  it turns out to be actually a little faster than in R^1^:
+
+```{r}
+rwd <-
+function (which = 1, d = 1, A = 5, M = 10000) 
+{
+    Dist <- function(x) sum(abs(x))
+    tm <- proc.time()
+    N <- rep(0, M)
+    if (which == 1) {
+        for (i in 1:M) {
+            x <- rep(0, d)
+            repeat {
+                N[i] <- N[i] + 1
+                k <- sample(1:d, 1)
+                x[k] <- x[k] + sample(c(-1, 1), 1)
+                if (Dist(x) == A) 
+                  break
+            }
+        }
+    }
+    if (which == 2) {
+        jumps <- make_jumps(d)
+        for (i in 1:M) {
+            x0 <- rep(0, d)
+            repeat {
+                x <- x0 + t(apply(jumps[, sample(1:(2 * d), size = 4 * 
+                  A, replace = TRUE), drop = FALSE], 1, cumsum))
+                D <- apply(x, 2, Dist)
+                if (max(D) >= A) 
+                  break
+                x0 <- c(x[, 4 * A])
+                N[i] <- N[i] + 4 * A
+            }
+            N[i] <- N[i] + c(1:(4 * A))[D == A][1]
+        }
+    }
+    if (which == 3) {
+        for (i in 1:M) {
+            N[i] <- rwdC(d, A)
+        }
+    }
+    if (which == 4) 
+        N <- rwdaC(d, A, M)
+    print(proc.time() - tm)
+    mean(N)
+}
+rwd(1,d=1,5)
+rwd(1,d=2,5)
+rwd(1,d=3,5)
+```
+
+In R^1^ it takes longer because we do one more calculation inside the repeat loop. 
+
+How about the vectorized version? This is a bit harder. First we need to have a matrix with all possible changes, jumps, see
+
+```{r}
+make_jumps <- function(d) {
+    jumps <- matrix(0, d, 2 * d)
+    for (i in 1:d) jumps[i, ((i - 1) * 2 + 1:2)] <- c(-1, 1)
+    jumps
+}
+```
+
+Next we randomly select 4A of these jumps
+
+```{r, eval=FALSE}
+jumps[, sample(1:(2*d), size=4*A, replace=TRUE)
+```
+
+Then we need do "add them up", again using cumsum: 
+
+```{r eval=FALSE}
+x <- x0 + t(apply(jumps[, sample(1:(2*d), 
+                       size=4*A, 
+                      replace=TRUE), drop=FALSE], 1, cumsum))
+```
+
+Notice the drop=FALSE argument, which assures that the result is not turned into a vector in the case d=1, and the t(), which is necessary because the apply(,,cumsum) inverts the matrix.
+
+I also have a small routine dist which calculates the distance from the origin.
+
+Now we find 
+
+```{r}
+rwd(1, 2, 5, M=1e5)
+rwd(2, 2, 5, M=1e5)
+```
+
+so there is actually not much gain here! The reason is that the apply(,,cumsum) command is quite slow.
+
+
+### Back to E[N~d,A~]
+
+
+Now we can run this routine to simulate N~dA~, and estimate E[N~d,A~]. The numbers for d=1,..,6 are in NdA. 
+
+```{r}
+NdA <-
+structure(c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
+16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 
+32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 
+48, 49, 50, 0, 4, 9, 15.8, 24.8, 35.9, 49.7, 64, 80, 99.9, 120.8, 
+143.2, 170.4, 194.8, 224.1, 255.7, 288.3, 328.2, 363.5, 396.8, 
+443.6, 488, 531.8, 570.3, 629, 675.2, 745.3, 785.7, 847.3, 899.2, 
+957, 1018.6, 1097.9, 1151.3, 1229.1, 1306.1, 1334.1, 1420.7, 
+1520.1, 1592.1, 1652.3, 1763.3, 1836.6, 1931.9, 2023.2, 2106.6, 
+2191.4, 2323.5, 2428.1, 2458.4, 1, 2.7, 5.6, 9.7, 15.2, 21.5, 
+29.1, 37.8, 47.7, 59.6, 71.6, 83.5, 99.4, 114.9, 132.9, 151.7, 
+169.1, 190.8, 213.6, 236.6, 262.9, 287.1, 312.6, 341.2, 373.6, 
+396.8, 435.5, 460.1, 497.5, 534.4, 568.6, 602.2, 637, 686, 714.4, 
+770.1, 812.2, 845.6, 891.6, 942.5, 987, 1043.1, 1098.1, 1125.2, 
+1188.9, 1258.8, 1295.5, 1348.3, 1408.6, 1474.4, 1, 2.4, 4.4, 
+7.4, 11.1, 15.8, 21.1, 27.3, 34.9, 43, 51.9, 61.3, 70.9, 82.7, 
+94.8, 108.2, 121.9, 138.1, 152.2, 168.7, 183.7, 202, 225.1, 244.5, 
+262.1, 283.1, 306.5, 330.1, 354.8, 379.6, 401, 434.6, 458.9, 
+489.7, 518.1, 547.4, 574.5, 605.5, 646, 678.8, 708.9, 737.2, 
+767.4, 815.5, 862.9, 891.6, 931.9, 977.3, 1019.9, 1056.9), .Dim = c(50L, 
+4L), .Dimnames = list(NULL, c("A", "d=1", "d=2", "d=3")))
+
+```
+
+```{r}
+ENdA <-
+function (s) 
+{
+    par(mfrow = c(2, 1))
+    plot(NdA[, 1], NdA[, 2], ylab = "NdA", xlab = "A")
+    points(NdA[, 1], NdA[, 3])
+    points(NdA[, 1], NdA[, 4])
+    fit1 <- lm(sqrt(NdA[, 2])~NdA[, 1])
+    fit2 <- lm(sqrt(NdA[, 3])~NdA[, 1])
+    fit3 <- lm(sqrt(NdA[, 4])~NdA[, 1])
+    plot(NdA[, 1], sqrt(NdA[, 2]), ylab = "SQRT NdA", xlab = "A")
+    abline(fit1)
+    points(NdA[, 1], sqrt(NdA[, 3]))
+    abline(fit2)
+    points(NdA[, 1], sqrt(NdA[, 4]))
+    abline(fit3)
+    cbind(coef(fit1), coef(fit2), coef(fit3))
+}
+ENdA()
+```
+
+
+We find a somewhat quadratic relationship. 
+
+Plotting SQRT(NdA) vs A shows a linear relationship.
+
+Finding the least squares regression equations using a no-intercept model and  plotting the slopes vs d we again see some curve
+
+This time log(slope) vs log(d) turns it into a straight line, and doing the regression we find the equation 
+
+slope = 1/d^0.41^
+
+and putting it all together we get
+
+E[N~d,A~] = (A/d^0.41^)^2^ = A^2^/d^0.82^ 
+ 
+It is not a perfect fit, in order to improve it we would need to look for a better equation for the slope.  

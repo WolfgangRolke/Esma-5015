@@ -1,0 +1,277 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## The Fundamental Theorem of Simulation
+
+Let's take another look at the Accept-Reject algorithm. Let's say we have a density f which has finite support on some interval [A,B] and we want to generate data from f. So we use Y~U[A,B] and we accept an observation if U < f(Y) . If we draw a graph similar to the **accrej.ill** routines above but with many runs it would look like this
+
+```{r, echo=FALSE}
+x <- seq(0, 1, length=1000)
+M <- 1
+f <- function(x){dbeta(x,2,4)/M}
+M <- max(f(x))
+curve(f,0,1)
+fc(0,1,f,cl="gray")
+segments(0, 0, 1, 0, lwd = 2)
+segments(0, 0, 0, 1, lwd = 2)
+segments(0, 1, 1, 1, lwd = 2)
+segments(1, 0, 1, 1, lwd = 2)
+```
+
+There is another way to think of this: consider the rectangle and generate a pair of uniform rvs on it. A point is accepted if it falls into the gray region. This idea leads to the following:
+
+First we write
+$$
+f(x) = \int_0^{f(x)} du
+$$
+
+Next consider the random vector (X, U) which has a joint density that is uniform on the set {(x,u): 0 < u < f(x)}. Now f is the marginal density of (X,U)!
+
+It does not seem that we have gained much by this rewriting of the accept - reject algorithm, but in fact this way of thinking has a great many consequences. First of all it is much more general than it seems, for example f need not be a univariate density but can be a density of a random vector on an arbitrary space! 
+
+Also it is clear from this description that in general the auxiliary variable can be chosen to be a uniform, although in practice then some transformations might be needed. That this is more important than it seems at first is clear because of the 
+
+**Theorem (Fundamental Theorem of Simulation)** 
+
+Simulating 
+
+$X\sim F$
+
+is equivalent to simulating
+
+$(X, U)\sim U\{ (x,u): 0 < u < f(x) \}$
+
+*proof* trivial
+
+One thing that is made clear by this theorem is that we can generate X in three ways: 
+
+- first generate $X \sim F$, and then U|X=x, but this is useless because we already have X and don't need U
+
+- first generate U, and then X|U=u, that is just the accept - reject algorithm
+
+- generate (X, U) jointly, which will eventually turn out be the smart idea because it allows us to generate data on a larger set were simulation is easier, and then to use the pair if the constraint is satisfied. 
+
+The full generality of this approach will have to wait a bit, but here is a simple case: Say X has support [A, B], and f(x) < M for all x. So we generate a pair $(Y, U)\sim U\{ 0 < u < M \}$ by simulating $Y\sim U[a,b]$ and $U|Y=y\sim U[0,m]$ and take the pair iff u<f(y).
+
+This works because 
+
+$$
+P \left( X\le x \right) = \\
+P(Y \le x | U<f(Y)) = \\
+\frac{P(Y \le x , U<f(Y))}{P(U<f(Y))} = \\
+\frac{\int_a^x \int_0^{f(y)} dudy}{\int_a^b \int_0^{f(y)} dudy} = \\
+\frac{\int_a^x f(y) dy}{\int_a^b f(y) dy} = \\
+\int_a^x f(y) dy
+$$
+
+####**Example**
+Say $X\sim \text{Beta}( \alpha, \beta)$ with $\alpha, \beta > 1$. 
+
+Now take $Y\sim U[0,1]$ and we find m by
+
+![](graphs/fund4.png)
+
+so $U\sim U[0, f((\alpha-1)/(\alpha+\beta-2)) ]$
+
+this is implemented in **genbeta**:
+
+```{r}
+genbeta <- function(n=10000, alpha=2, beta=3) {
+  x <- (alpha-1)/(alpha+beta-2)
+  M <- dbeta(x, alpha, beta)
+  xu <- matrix(0, n, 2)
+  for(i in 1:n) {
+    repeat {  
+      Y <- runif(1)
+      U <- runif(1, 0, M)
+      if(U<dbeta(Y, alpha, beta)) 
+        {xu[i, ] <- c(Y, U); break}
+    }  
+  }
+  xu[, 1]
+}
+hist(genbeta(), 100, freq=FALSE, main="")
+curve(dbeta(x, 2, 3), 
+      lwd=2, col="blue", add=TRUE)
+```
+
+The biggest restriction on the usefulness of this idea is that we need (X, U) to be in a box, so we can simulate from uniforms. This can be overcome if we allow simulating from a larger set on which uniform simulation is possible. Let's say this larger set is of the form 
+$$
+L = \left\{ (y, u): 0<u<m(x) \right\} 
+$$
+then the constraint is of the form $m(x)<f(x)$.
+
+Obviously because $m(x)<f(x)$ m(x) will not be a density (except if m(x)=f(x), where we are back at accept-reject) but that
+
+$$
+\int m(x) dx = M < \infty
+$$
+
+(if $\int m(x) dx = \infty$ uniform simulation from L would not be possible)
+
+and so we can define $g(x) = m(x)/M$ and g is a density. 
+
+If uniform simulation on L is possible we can then use the third bullet above, that is generate $Y \sim F$ and then $U|Y=y \sim U(0, m(x) )$. Now if we only accept y's with $u<f(y)$ we have 
+
+![](graphs/fund5.png)
+
+and we now have a generlization of the fundamental theorem:
+
+**Corollary** Let $X\sim F$ and let g be a density that satisfies
+
+$$
+f(x) < Mg(x)
+$$
+for all x and some constant $M\ge 1$. Then, to simulate from f it is sufficient to generate from 
+
+Y~g
+
+and
+
+$U|Y=y\sim U(0,Mg(y))$ 
+
+until 0 < u < f(y)
+
+`r hl()$hr()`
+
+As with the basic accept-reject algorithm, it can be shown that the number of trials until acceptance has an exponential distribution with mean 1/M , so the smaller M can be chosen, the quicker the sample is generated.
+
+####**Example**
+
+say we want to simulate fromm the density
+
+```{r}
+f <- function(x) exp(-x^2/2)*(sin(6*x^2) + 3*cos(x)^2*sin(4*x)^2 + 1)
+curve(f, -4, 4)
+```
+
+Notice that in order to use accept-reject we would need to find $\int f(x)dx$, already a no-trivial problem even using a numerical method.
+
+In order to use the corollary, we need a density g with $f(x)<Mg(x)$
+for some $M\ge 1$. Obviously 
+$$
+\sin (6x^2) + 3\cos (x)^2 \sin (4x)^2 + 1 \le 5
+$$
+
+so if we use the standard normal density for g we have 
+
+![](graphs/fund8.png)
+
+and so $M = 5\sqrt{(2\pi)} = 12.54$.
+
+```{r}
+fundex <- function (which = 1) {
+    f <- function(x) 
+      exp(-x^2/2)*(sin(6*x)^2+3*cos(x)^2*
+                      sin(4*x)^2+1)
+    if(which==1) 
+        curve(f, -4, 4, lwd = 2, n = 500)
+    M <- 5*sqrt(2*pi)
+    if(which==2) {
+        curve(f, -4, 4, lwd=2, n=500, ylim=c(0, 5))
+        x <- seq(-4, 4, length=200)
+        lines(x, M*dnorm(x), lwd = 2, col = "blue")
+    }
+    if(which == 3) {
+        n <- 1e+05
+        x <- rep(0, n)
+        for (i in 1:n) {
+            repeat {
+                y <- rnorm(1)
+                u <- runif(1, 0, M * dnorm(y))
+                if (u < f(y)) {
+                  x[i] <- y
+                  break
+                }
+            }
+        }
+        hist(x, breaks = 250, freq = FALSE, main="")
+    }
+    
+}
+```
+Here are f and g:
+
+```{r}
+fundex(2)
+```
+
+and here is the simulation:
+```{r}
+fundex(3)
+```
+
+
+####**Example**
+
+say we want to generate standard normal variates. As g we will use the double exponential distribution, that is
+$$
+g(x; \lambda) = \frac{1}{2} \lambda \exp(-\lambda |x|)
+$$
+which, as we will see shortly, can be generated with
+
+```{r, eval=FALSE}
+sample(c(-1, 1), size=n)*lambda*\log(U)
+```
+
+Now
+
+![](graphs/fund9.png)
+
+$\lambda |x|-x^2/2$ is symmetric in x, and $\lambda|x|-x^2/2$ has a maximum at $x=\lambda$, so we have
+
+$$
+f(x)/g(x; \lambda) \le \sqrt{2/\pi } \frac{1}{\lambda} exp(\lambda^2/2 )
+$$
+
+we are free to choose any $\lambda$, so it makes sense to choose it to minimize M, that is
+
+![](graphs/fund10.png)
+
+and we find $\lambda=1$ is optimal. With it we have 
+
+$M = \sqrt{2/\pi}/\exp(1/2) = 1.3$ 
+  
+  
+  
+**fundex1()** draws the curve for f and M*g and does the simulation:
+```{r}
+fundex1 <- function (n=1e+05) {
+    curve(dnorm(x), -3, 3, 
+          ylim=c(0, 0.65), lwd=2, ylab="f/g")
+    curve(1.3*0.5*exp(-abs(x)), -3, 3, 
+          add = TRUE, col = "blue", lwd=2)
+    x <- rep(0, n)
+    M <- sqrt(2*exp(1)/pi)
+    g <- function(x) 0.5*exp(-abs(x))
+    for (i in 1:n) {
+        repeat {
+            y <- sample(c(-1, 1), 1)*log(runif(1))
+            u <- runif(1, 0, M*g(y))
+            if (u < dnorm(y)) {
+                x[i] <- y
+                break
+            }
+        }
+    }
+    hist(x, breaks = 250, freq = FALSE, main = "")
+    z <- seq(-3, 3, length = 250)
+    lines(z, dnorm(z), lwd = 2)
+    
+}
+fundex1()
+```
+

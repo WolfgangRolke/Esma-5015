@@ -1,0 +1,529 @@
+---
+header-includes: \usepackage{color} 
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## An Example: Monopoly
+
+![](graphs/logo-monopoly-png-2.png)
+
+## The Game 
+
+
+Everybody (I hope) knows the game of Monopoly: 
+
+In a game a person's token moves along the board, mostly after the player throws two dice and moves as many fields as the sum of the dice. If he throws a "double" he goes again. Occasionally he lands on Chance or Community Chest and picks a card that may direct him to a specific field. Finally, if he throws three "doubles" in a row or lands on "Go to Jail" he does just that. If he lands on a field he can buy the property if it is not already owned or pay rent to the owner if it is. 
+
+After a while in the game a player might own all the properties of the same "color", and he is said to have a "monopoly". Then he can begin to build houses, up to a hotel, on this property, and get much more rent from the other players.
+
+Much of the game is "automatic", that is the player really does not make any decisions. Even the buying of property is (almost) automatic because it is understood that the more property he has, the better off he is. The one time strategy comes into play is when two players have the properties to form two monopolies, but need to "trade" some of them. As an example say player "A" owns New York Ave, Tennessee Ave (orange) and Indiana Ave (red). "B" owns St. James Place (orange), Kentucky Ave and Illinois Ave (red). So if they exchanged St. James Place for Indiana Ave, both would have a monopoly and can build houses. The question is, should they?
+
+One thing is clear: the "red" properties have a higher rent than the orange ones (\$950 vs \$1050). But rent is only paid if somebody steps on the property, so we also need to know the probability of that happening. This would be easy (all would be equally likely) except for those Chance and Community Chest cards, and the "Go to Jail" option. Notice that everytime somebody gets out of jail, the probability to step on an orange field is 
+
+P(6, 8 or 9) = (5+7+8)/36 = 0.55
+
+So how can we find these probabilities? Really, the only way to do this is via a simulation.
+
+## The Simulation Setup
+
+How do we set this up as a simulation? First we need to get the "board into R". The board has 40 fields. Each field has a  name ("Go", " Mediterreanen Ave", ..) . Many, but not all have a color. Finally there is the rent to be paid (for a hotel). So, we will represent the board as a vector of length 40. In *monopoly* this setup is done at the beginning:
+
+```{r}
+monopoly <- function (n = 1e+05) {
+  fields <- c("Go", "Mediterranean", "Community Chest",
+    "Baltic", "Income Tax", "Reading",  "Oriental",
+    "Chance", "Vermont", "Connecticut", "Jail", 
+    "St. Charles", "Electic Company", "States",
+    "Virginia", "Pennsylvania RR", "St. James", 
+    "Community Chest", "Tennessee", "New York", 
+    "Free Parking", "Kentucky", "Chance", "Indiana",
+    "Illinois", "R&B", "Atlantic", "Ventnor", 
+    "Water Works", "Marvin Gardens", "Go to Jail", 
+    "Pacific", "North Carolina", "Community Chest",
+    "Pennsylvania", "Short", "Chance", 
+    "Park", "Luxery Tax", "Boardwalk")
+  colors <- c("Go", "Purple", "Community Chest", 
+    "Purple", "Income Tax", "RR", "Light Blue", 
+    "Chance", "Light Blue", "Light Blue", "Jail", 
+    "Wine", "Utility", "Wine", "Wine", "RR", "Orange", 
+    "Community Chest", "Orange", "Orange", 
+    "Free Parking", "Red", "Chance", "Red", "Red", "RR",
+    "Yellow", "Yellow", "Utility", "Yellow", 
+    "Go to Jail", "Green", "Green", "Community Chest",
+    "Green", "RR", "Chance", "Blue", "Luxery Tax","Blue")
+  rent <- c(0, 250, 0, 450, 0, 200, 550, 0, 550, 600, 0,
+    750, 10, 750, 900, 200, 950, 0, 950, 1000, 0, 1050,
+    0, 1050, 1100, 200, 1150, 1150, 10, 1200, 0, 1275,
+    1275, 0, 1400, 200, 0, 1500, 0, 2000)
+  properties <- 1:10
+  names(properties) <- c("Purple", "Light Blue", "Wine",
+    "Orange", "Red", "Yellow", "Green", "Blue", "RR",
+    "Utility")
+  chancemove <- function(x) {
+        z <- sample(1:16, 1)
+        if (z == 1) {
+            if (x < 3) {
+                x <- x + 39 - 3
+            }
+            else {
+                x <- x - 3
+            }
+        }
+        if (z == 2) 
+            x <- 0
+        if (z == 3) 
+            x <- 39
+        if (z == 4) 
+            x <- 5
+        if (z == 5) 
+            x <- 11
+        if (z == 6) 
+            x <- 24
+        if (z == 7) 
+            x <- 10
+        if (z == 8) {
+            x <- 12
+            if (x > 21 & x < 39) 
+                x <- 28
+        }
+        if (z == 9) {
+            if (x > 0 & x < 9) 
+                x <- 5
+            if (x > 10 & x < 19) 
+                x <- 15
+            if (x > 20 & x < 29) 
+                x <- 25
+            if (x > 30 & x < 39) 
+                x <- 35
+        }
+        x
+    }
+    communitymove <- function(x) {
+        z <- sample(1:15, 1)
+        if (z == 1) 
+            x <- 0
+        if (z == 2) 
+            x <- 10
+        x
+    }
+    visits <- rep(0, 40)
+    rounds <- 0
+    jail.visit <- TRUE
+    double <- 0
+    x <- 0
+    for (i in 1:n) {
+        oldx <- x
+        dice <- sample(1:6, size = 2, replace = T)
+        if (dice[1] == dice[2]) 
+            double <- double + 1
+        else double <- 0
+        if (double == 3) {
+            x <- 10
+            jail.visit <- F
+        }
+        x <- (x + sum(dice))%%40
+        if (x == 10) {
+            jail.visit <- TRUE
+        }
+        else {
+            if (fields[x + 1] == "Chance") 
+                x <- chancemove(x)
+            if (fields[x + 1] == "Community Chest") 
+                x <- communitymove(x)
+            if (x == 30) 
+                x <- 10
+            if (x == 10) 
+                jail.visit <- F
+        }
+        if (x == 10 & !jail.visit) {
+            for (j in 1:3) {
+                visits[x + 1] <- visits[x + 1] + 1
+                dice <- sample(1:6, size = 2, replace = T)
+                if (dice[1] == dice[2]) 
+                  break
+            }
+            x <- x + sum(dice)
+        }
+        visits[x + 1] <- visits[x + 1] + 1
+        if (oldx >= x) 
+            rounds <- rounds + 1
+    }
+    print(paste("Number of Rounds:", rounds), quote=FALSE)
+    names(visits) <- fields
+    payed <- rent * visits
+    payed[c(12, 28) + 1] <- 70 * visits[c(12, 28) + 1]
+    p <- visits/sum(visits)
+    print("Percentage of Visits:", quote=FALSE)
+    print(round(sort(p, decreasing = T) * 100, 3), quote=FALSE)
+    print(" ", quote=FALSE)
+    for (i in names(properties)) properties[i] <- sum(payed[colors == 
+        i])
+    print("Mean Rent per Round by Monopoly:", quote=FALSE)
+    print(properties/rounds, quote=FALSE)
+    return(list(p = p, rent = properties/rounds))
+}
+```
+
+
+How do we represent the position of a token on the board? One way would be as one of the numbers 1-40, but another option is to use 0-39 instead. An advantage of this is it makes the move counting easier, because R has a modulus function built in. So say we are on field 35, and roll (2, 4). Then the next field is 
+
+```{r}
+(35 + 2 + 4)%%40
+```
+which is Baltic Ave.
+
+But there is also a problem: In R vectors cannot be indexed by 0, fields[0] would give an error message. fields[1] is "Go", not "Baltic Ave". So if we use x = 0-39, we need to use fields[x+1] to find out where we are.
+
+So the basic move is done with the R commands:
+
+```{r eval=FALSE}
+dice <- sample(1:6, size=2,replace=TRUE) # Throw the dice
+x <- (x+sum(dice))%%40 # Move along board
+```
+After a move we need to check whether we are on 
+
+- "Go to Jail" (if x=30)  
+- "Cummunity Chest" (fields[x+1]=="Community Chest")  
+-  "Chance" (fields[x+1]=="Chance")
+
+If we are on x=30 we go to Jail (x=10). If we are on "Community Chest" we pick a card and move as directed, which is done by the function *communitymove*. Similarly for "Chance".
+ 
+Note that there are 15 kinds of cards in the cummunity chest, but only two lead to a move of the token, Similarly 9 of the 16 chance cards lead to a move. Because we are interested in the probabilities of visiting streets we can ignore the other cards. 
+
+We need to include one more item in our simulation: if a player lands in jail he has two options: he can get out right away (paying \$50 or using a card) or he can throw the dice. If they come up doubles he gets out, moving the sum of the doubles. On the third round he gets out for sure (paying \$50). Of course, if he is just "visiting" the jail he moves on normaly. 
+
+What should a player do? Clearly in the early rounds he wants to get out of jail as quickly as possible (so he has a chance of buying more property) but in the later rounds it is much better to stay in jail (where rent is free). Because in our simulation we are interested in the later stages of a game, this will be our policy. 
+
+So the idea is to have one token start at Go (x=0) and let it move over the board according to the rules for many many rounds. 
+
+What should we keep track off? Obviously we need to know where we have been, which is done in 
+
+```{r}
+visits <- rep(0, 40)
+```
+
+We also keep track of the "rounds", that is how often we moved around the board. This happens everytime x gets "reset" by the mod function, so if we call "oldx" the current position, "x" the next position then if oldx>x we have gone around once more. 
+
+Finally we keep track of the money paid, in 
+
+```{r}
+rent <- rep(0, 40)
+```
+
+Here we assume that every property has a hotel, all the railroads are owned by the same person and all the "Utilities" are also owned by the same person.
+
+What should we print out? We are interested in the fields that make money, and their probabilities, so we sort these by the probabilities and show the result. We also show the "rent per round", this for the different monopolies.
+
+```{r}
+tmp <- monopoly()
+tmp
+```
+
+Here are the streets sorted by the probabilities:
+
+```{r}
+df <- data.frame(Property=names(tmp$p),
+           Probability=round(as.numeric(tmp$p), 4))
+df <- df[order(df$Probability, decreasing = TRUE), ]
+row.names(df) <- NULL
+kable.nice(df)
+```
+
+
+How about the monopolies?
+
+```{r}
+df <- data.frame(Monopoly=names(tmp$rent),
+           Rent=round(as.numeric(tmp$rent)))
+df <- df[order(df$Rent, decreasing = TRUE), ]
+row.names(df) <- NULL
+kable.nice(df)
+```
+
+
+Notice that owning the four railroads is worth more than owning the "Purple" monopoly (\$105 vs \$76 per round).
+
+### Basic Question
+
+So, how about our original question, should players "A" and "B" exchange St. James Place for Indiana Ave? If they do "A" then has the orange monoploy and "B" has the red one. So "A" should make about \$425 per round and "B" should make about \$458. On average in each round "B" makes \$33 more than "A". So this looks like "A" should not trade at all!
+
+Well, there are other considerations. For example, say the players agree to play for another 10 rounds, and "B" offers "A" an extra \$330. Now it is a fair trade.
+
+Another thing to consider is the amount of money "A" and "B" have. For example, if "B" is just about broke but "A" has plenty of money, "B" should not trade because he won't be able to build any houses and so he won't get any rent anyway.
+
+ Let's assume instead "A" has \$a and "B" has \$b. Then a trade would be fair if either of the two is equally likely to win at some point in the future. How can we find out what the probability of say "A" winning is? Well if "A" starts with \$a then 
+
+- he has to pay for building the hotels, after which he has a-sum(cost[colors=="Orange"]) left
+
+then after one round
+
+- his wealth will increase by rent["Orange"] with probability p["Orange"] (if "B" lands on an orange field) 
+
+- his wealth will decrease by rent["Red"] with probability p["Red"] (if he lands on red)
+
+- his wealth remains the same (if neither lands on the others property)
+
+Similar of course for B. 
+
+Note that the construction costs are \$250 per hotel in "row 1", \$500 in "row 2" and so on. 
+
+### Routines
+
+So now we can run a simulation, playing many games as above until one or the other is broke, in 
+
+```{r, eval=FALSE}
+monopoly1()
+```
+
+This routine is written to be easily understood, but it is a little slow. We need to run this a number of times, and so it is important to speed it up a bit. This is done in
+
+
+```{r}
+monopoly2 <- function (a, b, A = "Orange", B = "Red", 
+                       N = 10000, Show = FALSE) 
+{
+  fields <- c("Go", "Mediterranean", "Community Chest",
+    "Baltic", "Income Tax", "Reading",  "Oriental",
+    "Chance", "Vermont", "Connecticut", "Jail", 
+    "St. Charles", "Electic Company", "States",
+    "Virginia", "Pennsylvania RR", "St. James", 
+    "Community Chest", "Tennessee", "New York", 
+    "Free Parking", "Kentucky", "Chance", "Indiana",
+    "Illinois", "R&B", "Atlantic", "Ventnor", 
+    "Water Works", "Marvin Gardens", "Go to Jail", 
+    "Pacific", "North Carolina", "Community Chest",
+    "Pennsylvania", "Short", "Chance", 
+    "Park", "Luxery Tax", "Boardwalk")
+  colors <- c("Go", "Purple", "Community Chest", 
+    "Purple", "Income Tax", "RR", "Light Blue", 
+    "Chance", "Light Blue", "Light Blue", "Jail", 
+    "Wine", "Utility", "Wine", "Wine", "RR", "Orange", 
+    "Community Chest", "Orange", "Orange", 
+    "Free Parking", "Red", "Chance", "Red", "Red", "RR",
+    "Yellow", "Yellow", "Utility", "Yellow", 
+    "Go to Jail", "Green", "Green", "Community Chest",
+    "Green", "RR", "Chance", "Blue", "Luxery Tax","Blue")
+  rent <- c(0, 250, 0, 450, 0, 200, 550, 0, 550, 600, 0,
+    750, 10, 750, 900, 200, 950, 0, 950, 1000, 0, 1050,
+    0, 1050, 1100, 200, 1150, 1150, 10, 1200, 0, 1275,
+    1275, 0, 1400, 200, 0, 1500, 0, 2000)
+    names(rent) = fields
+  p <- c(0.02929, 0.02059, 0.01787, 0.02088, 0.02236,
+           0.02682, 0.0214, 0.00968, 0.02215, 0.0219,
+           0.10723, 0.02568, 0.02817, 0.02178, 0.0248,
+           0.02356, 0.02729, 0.02344, 0.02855, 0.02821,
+           0.02852, 0.026, 0.01376, 0.02583, 0.02976,
+           0.02719, 0.02556, 0.02581, 0.02524, 0.02499,
+           0, 0.02547, 0.02472, 0.02213, 0.0236, 0.02409,
+           0.00962, 0.02038, 0.02058, 0.02508)
+    cost = rep(1:4 * 250, rep(10, 4))
+    A.properties <- fields[colors == A]
+    B.properties <- fields[colors == B]
+    A.win <- 0
+    a <- a - sum(cost[colors == A])
+    b <- b - sum(cost[colors == B])
+    if (Show) {
+        print("Money after building Hotels:")
+        print(c(a, b))
+        print("Rent to be paid:")
+        print(rent[c(A.properties, B.properties)])
+    }
+    if (a < 0 | b < 0) {
+        print("No money to build!")
+        return(NA)
+    }
+    a <- rep(a, N)
+    b <- rep(b, N)
+    repeat {
+        n <- length(a)
+        x <- sample(1:40, size=n, replace=TRUE, prob=p)
+        for (j in B.properties) {
+            visit <- ifelse(fields[x] == j, TRUE, FALSE)
+            a[visit] <- a[visit] - rent[j]
+            b[visit] <- b[visit] + rent[j]
+        }
+        y <- sample(1:40, size=n, replace=TRUE, prob=p)
+        for (j in A.properties) {
+            visit <- ifelse(fields[y] == j, TRUE, FALSE)
+            a[visit] <- a[visit] + rent[j]
+            b[visit] <- b[visit] - rent[j]
+        }
+        if (min(a) < 0 | min(b) < 0) {
+            if (length(b[b < 0]) > 0) 
+                A.win <- A.win + length(b[b < 0])
+        }
+        still.playing <- ifelse(a>=0 & b>=0, TRUE, FALSE)
+        if (sum(still.playing) == 0) 
+            break
+        a <- a[still.playing]
+        b <- b[still.playing]
+    }
+    A.win/N
+}
+```
+
+Here we essentially run all N simulations simultaneously.
+
+Playing around  with this routine we can find out what a fair trade value is.
+
+Say both have \$3000, then 
+
+```{r}
+monopoly2(3000, 3000)
+```
+
+"A" wins with probability 66%. With a little bit of trial and error we can find that if as part of the trade "A" gives "B" \$225, then they both have the same probability of going broke:
+
+```{r}
+monopoly2(3000-225, 3000+225)
+```
+
+This is a very strange result: the orange properties are before the red ones, with lower rents, yet A should pay B? The explanation is this: B needs to pay more money (\$750 more) to build his hotels, and so he can get broke by just a few visits to A. If both started out with \$6000, it is B who needs to pay A, some \$300. 
+
+In the example above we have used trial and error to find the right trade-value. Can we write a routine that does this for us? Here is an idea:
+
+- find the probability of A winning without any money changing hands, call it p~0~
+
+- if p~0~ > 0.5 A needs to pay B, if p~0~ < 0.5 B needs to pay A.
+
+- say p~0~ > 0.5, let m be some amount of money (for example 10% of \$a, let p~m~ be the probability of A winning for a trade-value of m. If p~m~ < 0.5 the correct trade value is in [0, m], otherwise raise m and try again.
+
+- once we have found an interval [m~1~, m~2~] that contains the fair trade-value, check the midpoints and half the intervals.
+
+- if p~0~ < 0.5 do the same the other way around.
+
+- stop when p~m~ = 0.5 (just about)
+
+This is an example of one of my favorite algorithms, the **bisection** algorithm. here is the basic idea:
+
+![](graphs/mon2.png)
+
+so we change low to mid and run again. This algorithm works great if the function is monotone. It is very slow but extrememly stable. In our case because we don't have an explicit expression for the function (and therefore no derivative) it's probably as good as we can do.
+
+There is one difficulty:  our routine is a simulation and will give slightly different values in different runs. Here is what we need to consider:
+
+Let's say we do N = 10000 runs. On each run A either wins or looses. Let the rv Z~i~ = 1 if A wins, 0 otherwise. Then Z~1~, ..,Z ~N~ is a sequence of independent Bernoulli rv's with success probability p~m~. Therefore
+
+![](graphs/mon1.png)
+
+so if we run a simulation that gives p~m~ $\in$ [0.485,0.515] the "true" p~m~ might just be 0.5 and the corresponding m is a fair-trade value.
+
+This is implemented in 
+```{r echo=FALSE}
+monopoly3 <-
+function (a, b, A="Orange", B="Red", Show=TRUE) 
+{
+    p0 <- monopoly2(a = a, b = b, A = A, B = B)
+    if (Show) 
+        print(paste("m=", 0, "  pm=", p0))
+    if (abs(p0 - 0.5) < 0.015) 
+        return(0)
+    if (p0>0.5) {
+        m <- 0
+        repeat {
+            m <- m + 0.1 * a
+            pm <- monopoly2(a = a - m, b = b + m,
+                            A = A, B = B)
+            if (abs(pm-0.5) < 0.015) {
+                if (Show) 
+                  cat("A should pay B: $", m, "\n")
+                return(m)
+            }
+            if (Show) 
+                print(paste("m=", m, ",  pm=", pm))
+            if (pm<0.5) 
+                break
+        }
+        low <- m - 0.1 * a
+        high <- m
+        repeat {
+            mid <- (low+high)/2
+            pmid <- monopoly2(a=a-mid, b=b+mid, A=A, B=B)
+            if (Show) 
+                print(paste("m=", mid, ",  pm=", pmid))
+            if (abs(pmid-0.5) < 0.015) 
+                break
+            if (pmid>0.5) 
+                low <- mid
+            else high <- mid
+            if (high-low < 10) {
+                if (abs(pmid-0.5) < 0.1) 
+                  break
+                else return("No trade possible")
+            }
+        }
+        if (Show) 
+            cat("A should pay B: $", mid, "\n")
+        return(mid)
+    }
+    else {
+        m <- 0
+        repeat {
+            m <- m - 0.1 * a
+            pm <- monopoly2(a=a-m, b=b+m, A=A, B=B)
+            if (abs(pm-0.5) < 0.015) {
+                if (Show) 
+                  cat("B should pay A: $", abs(m), "\n")
+                return(m)
+            }
+            if (Show) 
+                print(paste("m=", m, ",  pm=", pm))
+            if (pm > 0.5) 
+                break
+        }
+        low <- m
+        high <- m + 0.1 * a
+        repeat {
+            mid <- (low+high)/2
+            pmid <- monopoly2(a=a-mid, b=b+mid, A=A, B=B)
+            if (Show) 
+                print(paste("m=", mid, ",  pm=", pmid))
+            if (abs(pmid-0.5) < 0.015) 
+                break
+            if (pmid>0.5) 
+                low <- mid
+            else high <- mid
+            if (high-low < 10) 
+                return("No trade possible")
+        }
+        if (Show) 
+            cat("B should pay A: $", abs(mid), "\n")
+        return(mid)
+    }
+    NULL
+}
+
+```
+
+
+```{r}
+monopoly3(5000, 3000, Show=TRUE)
+```
+
+This routine is not yet very good. To see whether your routine has problems it is often a good idea to run "extreme" cases. For example, try
+
+```{r error=TRUE}
+monopoly3(10000,3000,"Purple","Green", Show=T)
+```
+
+but the error message makes no sense, to begin with A and B had enough money to build. Any idea what's wrong with my routine?
+
+So, next time you play monopoly, bring your laptop and at the right time run our little routine. 
+
+If you want to know more about strategy in Monopoly, check out these websites:
+
+[Amnesta] (http://www.amnesta.net/other/monopoly)
+
+[Collins] (http://www.tkcs-collins.com/truman/monopoly/monopoly.shtml)
+ 

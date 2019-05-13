@@ -1,0 +1,336 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Expectation
+
+### Expectations of Random Variables
+
+The *expectation* (or expected value) of a random variable g(X) is defined by
+
+$$
+\begin{aligned}
+&\sum_x g(x)f(x)  \text{ if X discrete} \\
+&\int_{- \infty}^\infty g(x)f(x) dx  \text{ if X continuous} \\
+\end{aligned}
+$$
+
+We use the notation Eg(X)
+
+####**Example** 
+we roll  fair die until the first time we get a six. What is the expected number of rolls?
+
+We saw that f(x) = 1/6*(5/6)^x-1 if 
+
+Here we just have g(x)=x, so
+
+ ![](graphs/prob42.png)
+
+How do we compute this sum? Here is a "standard" trick:
+
+![](graphs/prob43.png)
+
+and so we find
+
+![](graphs/prob44.png)
+
+####**Example**
+
+X is said to have a *uniform* [A,B] distribution if f(x)=1/(B-A) for A<x<B, 0 otherwise.
+
+Find EX^k (this is called the k^th moment of X).
+
+![](graphs/prob45.png)
+
+`r hl()$hr()`
+
+some special expectations are the **mean** of X defined by $\mu=EX$ and the **variance** defined by $\sigma^2=V(X)=E(X-\mu)^2$. Related to the variance is the **standard deviation** $\sigma$, the square root of the variance.
+
+Here are some formulas for expectations:
+
+![](graphs/prob47.png)
+
+the last one is a useful formula for finding the variance and/or the standard deviation.
+
+####**Example** 
+find the mean and the standard deviation of a uniform [A,B] r.v.
+
+![](graphs/prob46.png)
+
+and so $\sigma=(B-A)/\sqrt{12}$
+
+####**Example** 
+Find the mean and the standard deviaiton of an exponential rv with rate $\lambda$.
+
+![](graphs/prob419.png)
+
+`r hl()$hr()`
+
+One way to "link" probabilities and expectations is via the indicator function I_A defined as 
+
+![](graphs/prob48.png)
+
+because with this we have for a continuous r.v. X with density f:
+
+![](graphs/prob49.png)
+
+### Expectations of Random Vectors
+
+The definition of expectation easily generalizes to random vectors:
+
+####**Example** 
+
+Let (X,Y) be a discrete random vector with 
+
+$f(x,y) = (1/2)^{x+y}, x \ge 1, y \ge 1$
+
+Find $E[XY^2]$
+
+![](graphs/prob420.png)
+
+### Covariance and Correlation
+
+The covariance of two r.v. X and Y is defined by 
+$cov(X,Y)=E[(X-\mu_X)(Y-\mu_Y)]$
+
+The correlation of X and Y is defined by 
+
+$cor(X,Y)=\frac{cov(X,Y)}{\sigma_X \sigma_Y}$
+
+Note cov(X,X) = V(X)
+
+As with the variance we have a simpler formula for actual calculations: 
+
+$cov(X,Y) = E(XY) - (EX)(EY)$
+
+####**Example** 
+take the  example  of the sum and absolute value of the difference of two rolls of a die. What is the covariance of X and Y?
+
+So we have
+
+$\mu_X = EX = 2*1/36 + 3*2/36 + ... + 12*1/36 = 7.0$  
+$\mu_Y = EY = 0*6/36 + 1*12/36 + ... + 5*2/36 = 70/36$  
+$EXY = 0*2*1/36 + 1*2*0/36 + .2*2*0/36.. + 5*12*0/36 = 490/36$
+
+and so 
+
+$cov(X,Y) = EXY-EXEY = 490/36 - 7.0*70/36 = 0$
+
+Note that we previously saw that X and Y are **not** independent, so we here have an  example  that a covariance of 0 does **not** imply independence! It does work the other way around, though:
+
+**Theorem**: If X and Y are independent, then cov(X,Y) = 0 ( = cor(X,Y))
+
+proof (in the case of X and Y continuous):
+
+![](graphs/prob410.png)
+
+and so cov(X,Y) = EXY-EXEY = EXEY - EXEY = 0
+
+####**Example** 
+Consider again the example from before: we have continuous rv's X and Y with joint density 
+
+$f(x,y)=8xy, 0 \le x<y \le 1$
+
+Find the covariance and the correlation of X and Y.
+
+We have seen before that $f_Y(y)=4y^3, 0<y<1$, so
+
+$E[Y]=\int_{-\infty}^\infty yf_Y(y)dy$ = 
+$\int_0^1 y4y^3dy$ = 
+$4/5y^5|_0^1 = 4/5$
+
+Now
+
+![](graphs/prob421.png)
+and
+
+![](graphs/prob422.png)
+and so cov(X,Y)=4/9-8/15&#183;4/5 = 12/675
+
+Also
+
+![](graphs/prob424.png)
+
+We saw above that E(X+Y) = EX + EY. How about V(X+Y)?
+
+![](graphs/prob411.png)
+and if $X \perp Y$  we have V(X+Y) = VX + VY
+
+### Conditional Expectation and Variance
+
+Say X|Y=y is a conditional r.v. with density (pdf) f. Then the conditional expectation of X|Y=y is defined by
+
+![](graphs/prob412.png)
+
+Let E[X|Y] denote the function of the random variable Y whose value at Y=y is given by E[X|Y=y]. Note then Z=E[X|Y] is itself a random variable.
+
+####**Example**
+An urn contains 2 white and 3 black balls. We pick two balls from the urn. Let X be denote the number of white balls chosen. An additional ball is drawn from the remaining three. Let Y equal 1 if the ball is white and 0 otherwise. 
+
+For example   
+
+$f(0,0) = P(X=0,Y=0) = 3/5*2/4*1/3 = 1/10$. 
+
+The complete density is given by:
+
+```{r echo=FALSE}
+df <- data.frame("x=0"=c(1, 2)/10, 
+                 "x=1"=c(4, 2)/10,
+                 "x=2"=c(1, 0)/10)
+colnames(df) <- c("x=0", "x=1", "x=2")
+rownames(df) <- c("y=0", "y=1")
+kable.nice(df)
+```
+
+The marginals are given by
+```{r echo=FALSE}
+dfx <- data.frame(a=c("x=0", "x=1", "x=2"),
+          b=apply(df, 2, sum))
+colnames(dfx) <- c("x", "P(X=x)")
+rownames(dfx) <- NULL
+dfy <- data.frame(a=c("y=0", "y=1"),
+                  b=apply(df, 1, sum))
+colnames(dfy) <- c("y", "P(Y=y)")
+rownames(dfy) <- NULL
+kable.nice(dfx)
+kable.nice(dfy)
+```
+
+The conditional distribution of X|Y=0 is
+
+```{r echo=FALSE}
+dfz <- data.frame(a=0:2, b=c("1/6", "2/3", "1/6"))
+colnames(dfz) <- c("x", "P(X=x|Y=0)")              
+kable.nice(dfz)
+```
+
+and so $E[X|Y=0] = 0*1/6+1*2/3+2*1/6 = 1.0$.
+
+The conditional distribution of X|Y=1 is
+
+```{r echo=FALSE}
+dfz <- data.frame(a=0:2, b=c("1/2", "1/2", "0"))
+colnames(dfz) <- c("x", "P(X=x|Y=1)")              
+kable.nice(dfz)
+```
+
+and so $E[X|Y=1] = 0*1/2+1*1/2+2*0 = 1/2$.
+
+Finally the conditional r.v. Z = E[X|Y] has density
+
+```{r echo=FALSE}
+dfz <- data.frame(a=c("1", "1/2"), b=c("3/5", "2/5"))
+colnames(dfz) <- c("z", "P(Z=z)")              
+kable.nice(dfz)
+```
+
+with this we can find $E[Z] = E[E[X|Y]] = 1*3/5+1/2*2/5 = 4/5$.
+
+How about using simulation to do these calculations? - program **urn1**
+
+```{r}
+ urn1 <- function (n = 2, m = 3, draws = 2, B = 10000) {
+    u <- c(rep("w", n), rep("b", m))
+    x <- rep(0, B)
+    y <- x
+    for (i in 1:B) {
+        z <- sample(u, draws + 1)
+        y[i] <- ifelse(z[draws + 1] == "w", 1, 0)
+        for (j in 1:draws) 
+          x[i] <- x[i] + ifelse(z[j] == "w", 1, 0)
+    }
+    print("Joint pmf:")
+    print(round(table(y, x)/B, 3))
+    print("pmf of X:")
+    print(round(table(x)/B, 3))
+    print("pmf of Y:")
+    print(round(table(y)/B, 3))
+    print("pmf of X|Y=0:")
+    x0 <- table(x[y == 0])/length(y[y == 0])
+    print(round(x0, 3))
+    print("E[X|Y=0]:")
+    print(sum(c(0:draws) * x0))
+    print("pmf of X|Y=1:")
+    x1 <- table(x[y == 1])/length(y[y == 1])
+    print(round(x1, 3))
+    print("E[X|Y=1]:")
+    print(sum(c(0:1) * x1))
+    
+ }
+urn1()
+```
+
+
+####**Example** 
+
+Consider again the example from before: we have continuous rv's X and Y with joint density $f(x,y)=8xy, 0 \le x<y \le 1$. We have found $f_Y(y) = 4y^3, 0<y<1$, and $f_{X|Y=y}(x|y) = 2x/y^2, 0 \le x \le y$. So
+
+![](graphs/prob423.png)
+
+Throughout this calculation we treated y as a constant. Now, though, we can change our point of view and consider $E[X|Y=y] = 2y/3$ as a function of y:
+
+$g(y)=E[X|Y=y]=2y/3$
+
+What are the values of y? Well, they are the observations we might get from the rv. Y, so we can also write
+
+$g(Y)=E[X|Y=Y]=2Y/3$
+
+but Y is a rv, then so is 2Y/3, and we see that we can define a rv Z=g(Y)=E[X|Y].
+
+Recall that the expression $f_{X|Y}$ does not make sense. Now we see that on the other hand the expression E[X|Y] makes perfectly good sense!
+
+There is a very useful formula for the expectation of conditional r.v.s: 
+
+
+$$E[E[X|Y]] = E[X]$$
+
+$E[X] = 0*3/10 + 1*3/5 + 2*1/10 = 4/5$.
+
+There is a simple explanation for this seemingly complicated formula!
+
+Here is a corresponding formula for the variance:
+
+$$V(X) = E[V(X|Y)]  + V[E(X|Y)]$$
+
+####**Example**
+
+let's say we have a continuous bivariate random vector with the joint pdf $f(x,y) = c(x+2y)$ if $0<x<2$ and $0<y<1$, 0 otherwise.
+
+Find c:
+
+![](graphs/prob413.png)
+
+Find the marginal distribution of X
+
+![](graphs/prob415.png)
+
+Find the marginal distribution of Y
+
+![](graphs/prob414.png)
+
+Find the conditional pdf of Y|X=x
+
+![](graphs/prob416.png)
+
+Note: this is a proper pdf for any fixed value of x
+
+Find E[Y|X=x]
+
+![](graphs/prob417.png)
+
+Let Z=E[Y|X]. Find E[Z]
+
+![](graphs/prob418.png)
+

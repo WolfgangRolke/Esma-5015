@@ -1,0 +1,66 @@
+---
+header-includes: \usepackage{color}
+                  \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## General Info for Homeworks
+
+-  if you don't follow the instructions given below it <font color="red)WILL</font> cost you points!
+
+-  any library that you use in your Rmd has to be loaded at the beginning.
+
+-  call the file *hw# .Rmd*, where #  is the number, for example *hw1.Rmd* (but NOT homework1.Rmd, Hw1.Rmd, HW1.Rmd, hw1.rmd etc)
+
+-  put it in your shared folder, not in any subfolder
+
+-  make sure it knits on <font color="red) **MY** </font> computer.
+
+-  if you read in anything (Resma3.RData, a text file, anything) make sure to read it from the class webpage, not from you hard drive. For example, have
+
+```{r}
+load(url("http://academic.uprm.edu/wrolke/Resma3/Resma3.RData"))
+```
+
+and not 
+
+```{r eval=FALSE}
+load("C:/myfolder/Resma3.RData"))
+```
+
+it is ok to have that while you are working on the assignment, but you have to change it back before you submit it.
+
+-  if you have a chunk that won't knit but yields an error, but you want to have it as part of your solution use the following:
+
+\`\`\`{r error=TRUE}
+
+-  Starting with Ver 1.2 RStudio needs a space between a hashtag(s) and the text for a header (this is so a hashtag can be used as a hashtag)
+
+-  unless I say differently your routines should always be able to handle a general case, not just one specific example. If the assignment includes an example, it might be a good idea if you make one up yourself and write your routine for that. Then when you think you got it apply your routine to the example from the assignment.
+
+so for example say the problem statement is: draw the following graph:
+
+```{r}
+attach(wine)
+plot(Heart.Disease.Deaths, Wine.Consumption)
+```
+
+your own example might be:
+
+```{r}
+Amount <- runif(20, 1, 6)
+Dead <- 100*Amount + runif(20, 0, 100)
+plot(Amount, Dead)
+```
+
+-  do not use any libraries that have not been discussed in class. If you want to do so send me an email and ask first.

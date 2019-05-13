@@ -1,0 +1,348 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## Inequalities and Limit Theorems
+
+### Two very useful inequalities
+
+**Markov's Inequality**
+
+If X takes on only nonnegative values, then for any a>0 
+
+$$P(X \ge a) \le \frac{EX}a$$
+
+proof:
+
+![](graphs/prob526.png)
+
+**Chebyshev's Inequality:**
+
+If X is a r.v. with mean $mu$ and variance $\sigma^2$, then for any k>0:
+
+$$P(|X-\mu|\ge k \sigma)\le 1/k^2$$
+
+proof:
+
+$$
+\begin{aligned}
+& P(|X-\mu|\ge k \sigma)   = \\
+& P((X-\mu)^2\ge k^2 \sigma^2)   \le \\
+& \frac{E(X-\mu)^2}{k^2\sigma^2}  = \frac{\sigma^2}{k^2\sigma^2} =1/k^2\\
+\end{aligned}
+$$
+
+####**Example** 
+Consider the uniform random variable with f(x) = 1 if $0<x<1$, 0 otherwise. We already know that $\mu=0.5$ and $\sigma=1/\sqrt{12} = 0.2887$. Now Chebyshev says
+
+$P(|X-0.5|>k0.2887) \le 1/k^2$
+
+For example
+
+$P(|X-0.5|>0.2887) \le 1$ (rather boring!)
+
+or
+
+$P(|X-0.5|>3\times0.2887) \le 1/9$
+
+actually $P(|X-0.5|>0.866) = 0$, so this is not a very good upper bound.
+
+
+### (Weak) Law of Large Numbers
+
+Let $X_1, X_2, ...$ be a sequence of  independent and identically distributed (iid) r.v.'s having mean $\mu$. Then for all $\epsilon>0$
+
+$$P(|\frac1n \sum X_i -\mu|>\epsilon)\rightarrow 0$$
+
+proof (assuming in addition that $V(X_i)=\sigma^2 < \infty$
+
+$$
+\begin{aligned}
+&E[\frac1n \sum X_i]    = \frac1n \sum E[X_i] = \mu\\
+&V[\frac1n \sum X_i]    = \frac1{n^2} \sum V[X_i] = \frac{\sigma^2}n\\
+&P(|\frac1n \sum X_i -\mu|>\epsilon)    = \\
+&P(|\frac1n \sum X_i -\mu|>\frac{\epsilon}{\sigma/\sqrt{n}}\sigma/\sqrt{n}) \le\\
+&1/(\frac{\epsilon}{\sigma/\sqrt{n}}) = \frac{\sigma}{\epsilon\sqrt{n}}\rightarrow 0
+\end{aligned}
+$$
+
+
+This theorem forms the bases of (almost) all simulation studies: say we want to find a parameter $\theta$ of a population. We can generate data from a random variable X with pdf (density) $f(x|\theta)$ such that $Eh(X) = \theta$. Then by the law of large numbers 
+
+$$\frac1n \sum h(X_i) \rightarrow \theta$$  
+
+####**Example** 
+
+in a game a player rolls 5 fair dice. He then moves his game piece along k fields on a board, where k is the smallest number on the dice + largest number on the dice. 
+For example   if his dice show 2, 2, 3, 5, 5 he moves 2+5 = 7 fields. What is the mean number of fields $\theta$ a player will move?
+
+To do this analytically would be quite an excercise. To do it via simulation is easy:
+
+Let X be an independent random vector of length 5, with $X[j] \in 1,..,6$ and $P(X[j]=k)=1/6$. Let $h(x) = min(x)+max(x)$, then $Eh(X) = \theta$. 
+
+Let $X_1,  X_2, ..$ be iid copies of X, then by the law of large numbers 
+
+```{r}
+B <- 1e5 
+z <- rep(0, B)
+for (i in 1:B) {
+  x <- sample(1:6, size = 5, replace = TRUE)
+  z[i] <- min(x)+max(x)
+}
+mean(z)
+```
+
+####**Example** 
+A company has a system (website, computers, telephone bank, machine, ...) that is mission-critical, and so they have two identical systems with the second one taking over automatically when the first one fails. From experience they know that each systems failure time has an exponential distribution with mean 84.6 hours. Once a system is down its repair time has a U[1,5] distribution. What is the probability that both systems are down simultaneously?
+
+Note: there is the possibility that both systems go down, system 1 gets fixed but breaks again before system 2 is fixed, so that they both are down immediately. The probability of this happening is so small though that we will ignore this.
+  
+Let $T_i$, i=1,2 be the failure time of system i. Let R be the repair time of system 1. Then the probability of both systems being down is 
+
+$P(R > T_2) = P(R-T_2>0) = E[I_{(0,\infty)})(R-T_2)]$
+
+So we have 
+
+$h(R,T_2) = I_{(0,\infty)})(R-T_2)$
+
+```{r}
+exsystems1 <- function(B=1000) 
+{
+  T2 <- rexp(B, 1/84.6)
+  R <- runif(B, 1, 5)
+  z <- ifelse(R - T2 > 0, 1, 0)
+  mean(z)
+}
+exsystems1()
+```
+
+What is the mean time per year when both systems are down?
+
+Let $T_i(k)$ be the failure times of system i in order with k=1 the first time, k=2 the second time etc.. Let R(k) be the same for the repair time. So we are looking at a sequence 
+
+$T_1(1), R(1),T_1(2), T_2(2)$ etc.
+
+![](graphs/prob513.png)
+
+
+```{r}
+exsystems2 <- function (B=1000, u=5) {
+  yearhours <- 24*365
+  z <- rep(0, B)
+  for(j in 1:B) {
+    T1 <- rexp(1000, 1/84.6)
+    T2 <- rexp(1000, 1/84.6)
+    R <- runif(1000, 1, u)
+    totaltime <- 0
+    downtime <- 0
+    for (i in 1:1000) {
+      totaltime <- totaltime + T1[i] + R[i]
+      if (T2[i] < R[i]) 
+        downtime <- downtime + (R[i] - T2[i])
+      if (totaltime > yearhours) 
+        break
+    }
+    if (totaltime < yearhours) 
+    print(paste("not enough time"))
+    z[j] <- downtime
+  }    
+  z
+}
+z <- exsystems2()
+mean(z)
+```
+
+Say the company has the option to contract another repair man, which would lower the repair time such that then R~U[1,3]. It costs the company \$8950 per hour when the system is down. How much can they pay this new repair man so it is a good idea to contract him? 
+
+We found that without the new guy we have a downtime of about 6 hours per year for a yearly cost of \$53700. If we higher the new guy we have an annual downtime of about 2.5 hours for a total cost of \$22400. So if we should pay him at most \$31300 per year.
+
+Say we have a contract with our main customer that specifies that our downtime can not exceed 10 hours per year, otherwise we have to pay a fine. We decide we are willing to accept a 10\% chance that we exceed the time limit. Should we proceed with these conditions?
+
+```{r}
+quantile(z, 0.9)
+```
+
+We see that there is about a 15\% chance of the failure time exceeding 10 hours, so we should not proceed.
+
+### Central Limit Theorem
+
+This is one of the most famous theorems in all of mathematics / statistics. Without it, Statistics as a science would not have existed until very recently:
+
+We first need the definition of a normal (or Gaussian) r.v.:
+
+A random variable X is said to be normally distributed with mean $\mu$  and standard deviation $\sigma$ if it has density:
+
+$$f(x) = \frac1{\sqrt{2\pi \sigma^2}} \exp\left\{\frac1{2\sigma^2}\left(x-\mu\right)^2 \right\}$$
+
+If  $\mu =0$ and $\sigma  =1$ we say X has a standard normal distribution.
+
+We use the symbol $\Phi$ for the distribution function of a standard normal r.v.
+
+Let $X_1,  X_2, ..$ be an iid sequence of r.v.'s with mean $\mu$  and standard deviation $\sigma$. Let $\bar{X}=\frac1n \sum X$. Then
+
+$$P(\frac{\bar{X}-\mu}{\sigma/\sqrt{n}}  \le z) \rightarrow \Phi(z)$$
+
+###**Example**
+
+Let's do a simulation to illustrate the CLT: we will use the most basic r.v. of all, called a Bernoulli r.v. which has $P(X=0)=1-p$ and $P(X=1)=p$. (Think indicator function for the coin toss}. So we sample n Bernoulli r.v. with "success paramater p" and find their sample mean. Note that 
+
+$$
+\begin{aligned}
+&E(X)    = p\\
+&V(X)    = p(1-p)
+\end{aligned}
+$$
+
+```{r}
+cltexample1 <- function (p, n, B=1000) {
+  xbar <- rep(0, n)
+  for (i in 1:B) {
+    xbar[i] <- mean(sample(c(0, 1), n, 
+                TRUE, prob=c(1-p,  p)))
+    }
+  df <- data.frame(x=sqrt(n)*(xbar-p)/sqrt(p*(1-p)))
+  bw <- diff(range(df$x))/50 
+  ggplot(df, aes(x)) +
+    geom_histogram(aes(y = ..density..),
+      color = "black", 
+      fill = "white", 
+      binwidth = bw) + 
+      labs(x = "x", y = "Density") +
+    stat_function(fun = dnorm, colour = "blue",
+                  args=list(mean=0, sd=1))
+  
+}
+cltexample1(0.5, 500)
+```
+
+
+### Approximation Methods
+
+Say we have a r.v. X with density f, a function h and we want to know V(h(X)). Of course we have the definitions but sometimes these integrals (sums) are very difficult to evaluate. In this section we discuss some methods for approximating the variance.
+
+Recall: If a function h(x) has derivatives of order r, that is if $h^{(r)}(x)$ exists, then for any constant a the **Taylor polynomial** of order r is defined by
+
+$$T_r(x)=\sum_0^r \frac{h^{r}(a)}{n!}(x-a)^n $$
+
+One of the most famous theorems in mathematics called Taylor's theorem states that the remainder of the approximation $h(x)-T_r(x)$ goes to 0 faster than the highest order term:
+
+**Taylor's theorem**
+
+$$\lim_{x\rightarrow a} \frac{h(x)-T_r(x)}{(x-a)^r}=0$$
+
+There are various formulas for the remainder term, but we won't need them here.
+
+####**Example** 
+
+say $h(x) = log(x+1)$ and we want to approximate h at x=0. Then we have
+
+![](graphs/prob518.png)
+
+```{r}
+taylor <- function(a=0, r=5, xrange=c(-0.99, 1)) {
+  x <- seq(xrange[1], xrange[2], length = 100)
+  h <- rep(0, r + 1)
+  h[1] <- log(a + 1)
+  for (n in 1:r) h[n + 1] <- (-1)^(n + 1)/n/(a + 1)^n
+  y <- matrix(0, 100, r + 2)
+  for (k in 1:100) {
+    y[k, 1] <- log(x[k] + 1)
+    y[k, 2] <- log(a + 1)
+    for (n in 1:r) 
+      y[k, n+2] <- y[k, n+1] + h[n+1]*(x[k]-a)^n
+  }
+  plot(x, y[, 1], type = "l", 
+       ylim = c(min(y), max(y)), lwd = 3)
+  for (n in 2:(r + 2)) lines(x, y[, n], col = n + 6)
+  
+}
+taylor()
+```
+
+
+For our purposes we will need only first-order approximations (that is using the first derivative) but we will need a multivariate extension as follows: say $X_1, ..,X_n$ are r.v. with means $\mu_1, .. ,\mu_n$ and define $\mathbf{X}=(X_1, ..,X_n)$ and $\mathbf{\mu} =(\mu_1, .. ,\mu_n)$. Suppose there is a differentiable function $h(\mathbf{x})$ for which we want an approximate estimate of the variance. Define
+
+$$h_i'(\mathbf{\mu})=\frac{\partial}{\partial t_i}h(\mathbf{t})|_{t_i=\mu_i} $$
+
+The first order Taylor expansion of h about $\mathbf{\mu}$ is
+
+$$h(\mathbf{t}) =h(\mathbf{\mu})+\sum_{i=1}^n h_i'(\mathbf{\mu})(t_i-\mu_i) +\text{Remainder}$$
+
+Forgetting about the remainder we have 
+
+![](graphs/prob521.png)
+
+and
+
+![](graphs/prob522.png)
+
+####**Example**
+say we have a sample $X_1, ..,X_n$ from a Bernoulli r.v. with success parameter p. One popular measure of the probability of winning a game is the odds p/(1-p). For example   when you roll a fair die the odds of getting a six are (1/6)/(1-(1/6) = 1:5.
+
+An obvious estimator for p is $\hat{p}$, the sample mean, or here the proportion of "successes" in the n trials.
+
+Then an obvious estimator for the odds is $\frac{\hat{p}}{1-\hat{p}}$. The 
+question is, what is the variance of this estimator?
+
+Using the above approximation we get the following: let $h(p)=p/(1-p)$, so $h'(p)=1/(1-p)^2$ and
+
+![](graphs/prob523.png)
+
+```{r}
+p <- 0.5
+n <- 100
+B <- 10000
+phat <- rep(0, B)
+for (i in 1:B) 
+  phat[i] <- mean(rbinom(n, 1, p))
+odds <- phat/(1 - phat)
+c(var(odds), p/n/(1 - p)^3)
+```
+
+####**Example** 
+We have a rv $X\sim U[0,1]$, and a rv $Y|X=x \sim U[0,x]$. Find an approximation of $V[Y/(1+Y)]$.
+
+Note: this is called a hierarchical model. 
+
+We have:
+
+1) $f_X(x)=1$ if 0<x<1, 0 otherwise
+2) $f_{Y|X=x}(y|x)=1/x$ if 0<y<x, 0 otherwise
+
+Now
+
+![](graphs/prob532.png) 
+
+```{r}
+x <-  runif(B)
+y <-  runif(B, 0, x)
+c(mean(y), var(y), var(y/(y+1)))
+```
+
+####**Example** 
+let's consider the random vector  with joint pdf $f(x,y) = 6x$, $0 < x< y < 1$. Say we want to find $V(X/Y)$. Then if we consider the function h(x,y) = x/y we have 
+
+![](graphs/prob528.png)
+
+Now we need to find $\mu_X=E[X]$, V[X], $\mu_Y=E[Y]$, 
+  V[Y] and cov(X,Y):
+  
+![](graphs/prob530.png)
+
+![](graphs/prob531.png)
+
+![](graphs/prob529.png)
+
+Doing this via simulation has to wait until we learn how to simulate from such a random vector!

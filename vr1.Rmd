@@ -1,0 +1,398 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Variance Reduction Methods
+
+## Antithetic and Control Variables
+
+### Antithetic Variables
+
+Suppose we want to estimate a parameter $\theta =E[X]$ and suppose we have generated $X_1$ and $X_2$, two rv's with mean $\theta$. Then
+$$
+\begin{aligned}
+&Var(\overline X)=Var\left( \frac{X_1+X_2}{2}\right)=\\
+&\frac{1}{4}Var(X_1)+\frac{1}{4}Var(X_2)+\frac{1}{2}Cov(X_1,X_2)
+\end{aligned}
+$$  
+
+Obviously we want to do this so that we minimize our simulation error, that is the variance of our estimator. If we generate $X_1$ and $X_2$  independently we have $Cov(X_1,X_2)=0$, but we could do even better if we generated them so that $Cov(X_1,X_2)<0$
+
+
+####**Example** (Estimating an Integral) 
+Let's say we want to use simulation to estimate the integral
+$$
+\int_0^1 e^xdx
+$$
+
+(not that we need simulation to do this, but it illustrates the idea). Now
+$$
+\int_0^1 e^xdx=E[U]=\theta
+$$
+
+where $U \sim U[0,1]$.
+
+Now the straightforward approach would be to generate $U_1,U_2$ iid $U[0,1]$ and to estimate the integral by $(\exp(U_1)+\exp(U_2))/2$. This would have variance
+$$
+Var(\frac{1}{2}\left(e^{U_1}+e^{U_2})\right)
+$$
+Now
+$$
+\begin{aligned}
+&E[e^{U}]=\int_0^1e^xdx=e-1\\
+&E[e^{2U}]=\int_0^1e^{2x}dx=\frac12 (e^2-1)\\
+&Var(e^U)=\frac12 (e^2-1)-\left( e-1 \right)^2=0.242\\
+&Var(\frac{1}{2}\left(e^{U_1}+e^{U_2})\right)=\frac12 Var(e^U)=0.121
+\end{aligned}
+$$
+How can we generate $X_1$ and $X_2$ so that $E[X_1]=E[X_2]=\theta$ and $Cov(X_1,X_2)<0$? One idea (due to Rubinstein) is to use 
+$$
+X_1=\exp(U)\\
+X_2=\exp(1-U)
+$$
+Of course $1-U \sim U[0,1]$,  so $E[X_1]=E[X_2]=\theta$. 
+
+Now
+$$
+\begin{aligned}
+&Cov(X_1, X_2)=Cov(e^U,e^{1-U})=\\
+&E[e^Ue^{1-U}[-E[e^U]E[e^{1-U}]=\\
+&e-(e-1)^2=-0.234
+\end{aligned}
+$$  
+and so
+$$
+\begin{aligned}
+&Var\left(\frac{e^U +e^{1-U}}{2} \right)=\\
+&\frac{1}{4}Var(e^U)+\frac{1}{4}Var(e^{1-U})+\frac{1}{2}Cov(e^U,e^{1-U})=\\
+&0.242+0.242+\frac12 (-0.234)=0.0039
+\end{aligned}
+$$  
+
+Let's use simulation to verify this:
+```{r}
+B <- 1e5
+U <- runif(B)
+out <- round( var(exp(U)), 4)
+cat("Direct Simulation: ", out,"\n")
+U2 <- runif(B)
+out <- round( var((exp(U)+exp(U2))/2), 4)
+cat("Averaging: ", out,"\n")
+out <- round( var((exp(U)+exp(1-U))/2), 4)
+cat("Rubinstein: ", out,"\n")
+```
+
+
+####**Example**
+say we want to find 
+$$
+I=\int_0^{\pi/4}\int_0^{\pi/4}x^2y^2\sin(x+y)\log(x+y)dxdy
+$$
+We can use R and the *integrate* routine:
+```{r}
+dblInt <-
+function(f, low = c(0, 0), high = c(Inf, Inf)) 
+{
+    integrate(function(y) {
+        sapply(y, function(y) {
+            integrate(function(x) f(x, y), low[1],
+                      high[1])$value
+        })
+    }, low[2], high[2])$value
+}
+```
+
+```{r}
+f <- function(x, y) {
+        x^2*y^2*sin(x+y)*log(x+y)
+}
+out <- round(dblInt(f, c(0, 0), c(pi,pi)/4), 4)
+cat("Numeric Integration: ", out,"\n")
+```
+
+Now to use simulation we need to write the integral as in terms of expected values: 
+
+$$
+\begin{aligned}
+&f(x,y)=x^2y^2\sin(x+y)\log(x+y)dxdy\\
+&I=\left(\frac\pi2\right)^2\int_0^{\pi/4}\int_0^{\pi/4}f(x,y)\frac4\pi\frac4\pi dxdy=\\
+&\left(\frac\pi2\right)^2 E[f(\frac\pi4 U, \frac\pi4 V)]
+\end{aligned}
+$$
+
+```{r}
+k <- (pi/4)^2
+u <- runif(B)
+v <- runif(B)
+z <- k * f(pi * u/4, pi * v/4)
+out <- round(c(mean(z), sd(z)), 4)
+cat("Standard Simulation: ", out,"\n")
+u <- runif(B/2)
+v <- runif(B/2)
+z <- k * (f(pi * u/4, pi * v/4) + f(pi * (1 - u)/4, pi * (1 - v)/4))/2
+out <- round(c(mean(z), sd(z)), 4)
+cat("Antithetic Simulation: ", out,"\n")
+```
+
+Until now we use 1-U as an antithetic variable. There are other options, however 
+
+####**Example**
+say $X \sim N(10,1)$ and we want to find $E[\log (X)]$.
+
+Obviously we can generate rnorm(n, 10, 1) and then find mean(x)
+but notice that if $X \sim N(\mu, \sigma )$, then $Y = 2\mu -X \sim N(\mu , \sigma)$, so $Y$ is an antithetic variable again and
+$$
+\begin{aligned}
+&Cov(X,Y)=Cov(X,2\mu -X)=\\
+&Var(X)-2\mu Var(X)=\\
+&(1-2\mu )Var(X)<0\\
+&1-2\mu <0 \text{ or } \mu >\frac12
+\end{aligned}
+$$
+```{r}
+x <- rnorm(B, 10, 1)
+out <- round(c(mean(log(x)), sd(log(x))), 3)
+cat("Standard Simulation: ", out,"\n")
+x <- rnorm(B/2, 10, 1)
+y <- 20 - x
+z <- (log(x) + log(y))/2
+out <- round(c(mean(z), sd(z)), 3)
+cat("Antithetic Simulation: ", out,"\n")
+```
+
+Let's we have $X \sim N(1/4,1)$ and want to find $E[X^2]$. Here we have an example where there is no variance reduction because $\mu <1/2$:
+```{r}
+x <- rnorm(B, 1/4, 1)
+out <- round(c(mean(x^2), sd(x^2)), 3)
+cat("Standard Simulation: ", out,"\n")
+x <- rnorm(B/2, 1/4, 1)
+y <- 1/2 - x
+z <- (x^2 + y^2)/2
+out <- round(c(mean(z), sd(z)), 3)
+cat("Antithetic Simulation: ", out,"\n")
+```
+
+### Control Variables
+
+Again we want to estimate a parameter $\theta =E[X]$. Now suppose that for some other output variable, say $Y$, we have $E[Y]=\mu$, and $\mu$ is known. Then for any constant c
+$$
+E[X+c \cdot (Y-\mu )] = E[X] +cE(Y-\mu ) = E[X] = \theta
+$$
+so $X+c \cdot (Y-\mu )$ is an unbiased estimate of $\theta$. 
+
+Of course the optimal c is the one that minimizes the variance, and so
+$$
+\begin{aligned}
+&Var\left(X+c \cdot (Y-\mu ) \right)=\\
+&Var\left(X+c \cdot Y \right)=\\
+&Var(X)+c^2Var(Y)+2c Cov(X,Y)
+&
+\end{aligned}
+$$
+so
+$$
+c_{opt}=-\frac{ Cov(X,Y)}{Var(Y)}
+$$
+and with this value we have
+$$
+\begin{aligned}
+&Var(X)+\left( -\frac{ Cov(X,Y)}{Var(Y)} \right)^2Var(Y)+2\left( -\frac{ Cov(X,Y)}{Var(Y)} \right) Cov(X,Y)=\\
+&Var(X) -\frac{ Cov(X,Y)^2}{Var(Y)} 
+\end{aligned}
+$$
+
+The quantity $Y$ is called a *control* variable for the simulation variable $X$. 
+
+Let's see how this works. Let's assume $X$ and $Y$ are positively correlated, that is large values of $X$ go with large values of $Y$.
+
+So if we see a large value of $Y$ (relative to $\mu$) then it is probably true that $X$ is also large (relative to $\theta$) and we should lower our estimate a bit. But this is exactly what happens because now $c_{opt}$ is negative.
+
+####**Example** 
+let's do again the integral example above. We have $X= \exp (U)$. An obvious choice for $Y$ is $U$ itself. We know
+$$
+E[Y]=\frac12 \text{ , } Var(Y)=\frac{1}{12}
+$$
+and
+$$
+\begin{aligned}
+&Cov(U,e^U)=E[Ue^U]-E[U]E[e^U]=\\
+&\int_0^1ue^u du-\frac12 (e-1)=0.1409\\
+&Var(X) -\frac{ Cov(X,Y)^2}{Var(Y)} = \\
+&0.2420-0.2380=0.0039
+\end{aligned}
+$$
+```{r}
+u <- runif(B)
+x <- exp(u)
+c_opt <- -cov(x, u)/var(u)
+z <- x + c_opt*(u - 0.5)
+out <- round(c(mean(z), var(z)), 4)
+cat("Control Variable: ", out,"\n") 
+```
+
+####**Example**
+let's find
+$$
+I=\int_0^2
+\exp(-x^2)dx
+$$
+First note that by a change of variable
+$$
+I= 2\int_0^1 \exp(-(2u)^2)du
+$$
+Let $Y= \exp (-2U)$, then
+$$
+\begin{aligned}
+&F_Y(y)=P(Y<y)=P(2 \exp(-2U)<y)=\\
+&P(-2U< \log(y/2))=\\
+&P(U>-\frac12 \log(y/2))=\\
+&1-P(U< -\frac12 \log(y/2))=\\
+&1+\frac12 \log(y/2) \text{ for } \frac2{e^2}<y<2\\
+&f_Y(y)=\frac1{2y}\\
+&E[Y]=\int_{2/e^2}^2 y\frac1{2y}dy=1-\frac1{e^2}
+\end{aligned}
+$$
+```{r}
+f <- function(x) exp(-x^2)
+out <- round(integrate(f, 0, 2)$value, 2)
+cat("Numerical Integration: ", out, "\n")
+u <- runif(B)
+z <- 2 * f(2 * u)
+out <- round(c(mean(z), sd(z)), 4)
+cat("Standard Simulation: ", out, "\n")
+u <- runif(B)
+x <- 2 * f(2 * u)
+y <- 2 * exp(-2 * u)
+mu_y <- 1 - exp(-2)
+c_opt <- -cov(x, y)/var(y)
+z <- x + c_opt * (y - mu_y)
+out <- round(c(mean(z), sd(z)), 4)
+cat("Control Variable Simulation: ", out, "\n")
+```
+
+####**Example** 
+Consider the following problem: as part of an "online" computer program we need to find the following integral, for different values of $(t_1, ..,t_k)$:
+$$
+g_k(\mathbf{t})=\int_0^1...\int_0^1 \sin \left( \prod_{i-1}^k [x_i+t_i] \right) dx_1..dx_k
+$$
+
+It is necessary to find this integral  with a precision of $\pm 0.01$, that is a $95\%$ CI for $g_k(\mathbf{t})$ should have a length of no more than 0.002. Each time this integral needs to be found the computer program has to wait and so solving it as fast as possible is important.
+
+Let's first do this using a simple simulation. Generate $U_1, ..,U_k \sim U[0,1]$ and calculate $X_1 = \sin (\prod [U_i +t_i])$.
+
+Repeat this n times and then use $\overline X$ as an estimate of $g_k(\mathbf{t})$. Also calculate the sample standard deviation s. By the CLT $\overline X$ should be approximately normal with mean $g_k(\mathbf{t})$ and standard deviation $\sigma$, so a $95\%$ CI for $g_k(\mathbf{t})$ is given by  
+
+$$
+\overline X \pm 1.96\sigma /\sqrt n
+$$
+so the error is 
+
+$$
+2 \cdot 1.96\sigma /\sqrt n = 3.92\sigma /\sqrt n = 0.002
+$$
+so $\sigma/\sqrt n=0.0005$. 
+
+In other words we need n large enough to ensure
+$\sigma/\sqrt n=0.0005$. But we don't know $\sigma$! We can (approximately) do this as follows:
+
+1) Do a "small" trial run, say 1000 simulations. Based on these you can calculate an estimate of $\sigma =s$
+
+2) If 1000 was already enough ($s < 0.0005$) you are done, otherwise
+we need $n=(s/0.0005)^2$ and now run the simulation again. 
+
+Note: you only need n-1000 runs, you already have 1000. 
+```{r}
+n <- 1000
+t <- c(0.3, 0.3, 0.3)
+k <- length(t)
+u <- matrix(runif(k * n), n, k)
+for (j in 1:k) u[, j] = u[, j] + t[j]
+I <- apply(sin(u), 1, prod)
+out <- round(c(mean(I), sd(I)), 4)
+if( sd(I)/sqrt(n) > 0.0005) {
+    n <- round((sd(I)/0.0005)^2, -2)
+    cat("n=", n, "\n")
+    u <- matrix(runif(k * n), n, k)
+    for (j in 1:k) u[, j] = u[, j] + t[j]
+    I <- apply(sin(u), 1, prod)
+    out <- round(c(mean(I)+c(1-.9, 1.96)*sd(I)/sqrt(n)), 5)
+}    
+cat("Standard Simulation: ", out, "\n")
+```
+
+Now, can we speed this up? let's try the control variable approach.
+
+the obvious choice here is $Y=\prod U_i$, but in order to use it we need to know $\mu =E[Y]$:
+
+![](graphs/vr113.png)
+
+so our new estimator is as $\overline X -cov(X,Y)/Var[Y](Y-2^{-k})$
+
+```{r}
+```{r}
+n <- 1000
+t <- c(0.3, 0.3, 0.3)
+k <- length(t)
+u <- matrix(runif(k * n), n, k)
+y <- apply(u, 1, prod)
+for (j in 1:k) u[, j] = u[, j] + t[j]
+x <- apply(sin(u), 1, prod)
+c_opt <- -cov(x, y)/var(y)
+I <- x + c_opt * (y - (1/2)^k)
+out <- round(c(mean(I), sd(I)), 4)
+if( sd(I)/sqrt(n) > 0.0005) {
+    n <- round((sd(I)/0.0005)^2, -2)
+    cat("n=", n, "\n")
+    u <- matrix(runif(k * n), n, k)
+    y <- apply(u, 1, prod)
+    for (j in 1:k) u[, j] = u[, j] + t[j]
+    x <- apply(sin(u), 1, prod)
+    c_opt <- -cov(x, y)/var(y)
+    I <- x + c_opt * (y - (1/2)^k)
+    out <- round(c(mean(I)+c(1-.9, 1.96)*sd(I)/sqrt(n)), 5)
+}    
+cat("Control Variable Simulation: ", out, "\n")
+```
+
+now n=10000 is enough!
+
+####**Example** (The Barbershop)
+
+Many application of variance reduction techniques can be found in the study of queuing systems. As a simple example, consider the case of a barbershop where the barber opens for business every day at 9am and closes at 6pm. He is the only barber in the shop and he is considering hiring another barber to share the workload. 
+
+First, however, he would like to estimate the mean total time that customers spend waiting on a given day. 
+
+Assume customers arrive at the barbershop according to a non-homogeneous Poisson process, $N(t)$, with intensity $\lambda(t)$, and let $W_i$ denote the waiting time of the $i^{th}$ customer. Then, noting that the barber has a 9-hour work day, the quantity that he wants to estimate is $\mu = E[Y]$ where
+
+$$
+Y= \sum_{j=1}^{N(9)} W_j
+$$
+
+Assume also that the service times of customers are IID with CDF, F(:), and that they are also independent of the arrival process, N(t).
+  
+The usual simulation method for estimating $\mu$ would be to simulate $n$ days of operation in the barbershop,  thereby obtaining $n$ samples, $Y_1, ... , Y_n$, and then finding the mean of the Y's. 
+  
+However, a better estimate could be obtained by using a control variate. In particular, let Z denote the total
+time customers on a given day spend in service so that
+
+$$
+Z= \sum_{j=1}^{N(9)} S_j 
+$$
+where $S_j$ is the service time of the jth customer. Then, since services times are IID and independent of the arrival process, it is easy to see that
+$$  
+E[Z] = E[S]E[N(9)]
+$$
+
+which should be easily computable. Intuition suggests that Z should be positively correlated with Y and therefore it would also be a good candidate to use as a control variate.

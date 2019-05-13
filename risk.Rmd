@@ -1,0 +1,51 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Student Exercises
+
+## Risk!
+![](graphs/risk1.jpg)
+
+Risk is a strategy board game produced by Parker Brothers. It was invented by French film director Albert Lamorisse and originally released in 1957 as *La Conquête du Monde* ("The Conquest of the World") in France. 
+
+It was later bought by Parker Brothers and released in 1959 with some modifications to the rules as Risk: The Continental Game, then as Risk: The Game of Global Domination. 
+
+Risk is a turn-based game for two to six players. The standard version is played on a board depicting a political map of the Earth, divided into forty-two territories, which are grouped into six continents. The object of the game is to occupy every territory on the board and in doing so, eliminate the other players.
+
+Players control armies with which they attempt to capture territories from other players, with results determined by dice rolls. 
+  
+![](graphs/risk2.jpg)
+
+there are a lot of details to the game. We will investigate only one step, that of one country attacking another. This step is done by the owner of the attacking country and the owner of the defending country throwing dice.
+
+Say the attacking country has n armies and the defending one has m. Then if $n \ge 4$ and $m \ge3$ both  throw 3 dice. These are ordered from largest to smallest and matched. For each match were the defending country is at least equal to the attacking country the attacking country looses one armee, otherwise the defending armee does.
+
+Example A: 3 5 5 D: 2 5 6  
+Sort: A: 5 5 3 D 6 5 2  
+5 < 6 A looses one armee   
+5 = 5 A looses one armee  
+3 > 2 D looses one armee 
+
+so A looses 2 armees and D looses 1.
+
+finally neither side can through more dice than they have available for fighting, and A always has to keep 1 armee to occupy the country, so for example if A has 3 armees and D has one, A throws 2 dice and D throws 1. 
+
+Example A 4 2 D 4, $4 \ge 4$, so A looses 1 armee.
+
+If D has lost all his armees he looses the country and A takes it over. If A has only one armee left he can no longer attack. A can decide to stop attacking at any time. 
+
+Now here is our problem: we want to find a "simple" rule that we can use during an actual game that tells us the odds of winning if the Attacker has n armees for the attack and the defender has m. 
+

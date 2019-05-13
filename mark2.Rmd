@@ -1,0 +1,852 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+## MCMC - Markov Chain Monte Carlo
+
+The starting point of this section is the result that if the Markov chain $\left\{X_n\right\}$ is irreducible and ergodic, then  
+
+$$
+\lim_{n \rightarrow \infty} P(X_n=j)=\pi_j
+$$
+
+The idea is to use this as follows: say I want to generate data from a distribution $\pi$. Now if I can find an irreducible and ergodic Markov chain $\left\{X_n\right\}$ which has $\pi$ as its stationary measure, we can generate observations from $\left\{X_n\right\}$, wait a while until its limiting distribution is reached (?) and then take the $\left\{X_n\right\}$ as if they came from $\pi$.
+
+### The Metropolis-Hastings Algorithm
+
+Let's say we want to generate observations from a distribution $\pi$ on \{1,..,m\}. Let $Q$ be the transition probability matrix of an irreducible Markov chain on \{1,..,m\}. Define the Markov chain $\left\{X_n\right\}$ as follows: 
+
+When $X_n=i$ a r.v. $X$ with $P(X=j)=q_{ij}$ is generated. (This of course means we need to know how to generate observations from $Q$). If $X=j$, then set $X_{n+1}=j$ with probability $\alpha_{ij}$ and equal to $i$ with probability $1-\alpha_{ij}$. Now $\left\{X_n\right\}$ is a Markov chain with transition probabilities given by:
+
+$$
+\begin{aligned}
+&p_{ij}=q_{ij}\alpha_{ij} \text{ if } i\ne j\\
+&p_{ii}=q_{ii}+ \sum_{k \ne i} q_{ik}(1-\alpha_{ik})
+\end{aligned}
+$$
+This Markov chain will be time-reversible and have stationary measure $\pi$ if
+$$
+\pi_iP_{ij}=\pi_jP_{ji} \text{ for all } j \ne i
+$$
+which is equivalent to
+$$
+\pi_iq_{ij}\alpha_{ij}=\pi_jq_{ji}\alpha_{ji}
+$$
+and is easy to check that this will be satisfied if we set
+$$
+\alpha_{ij}= \min \left( \frac{\pi_jq_{ji}}{\pi_iq_{ij}},1 \right)
+$$
+One of the reasons this algorithm is so useful is the following: say we only know the values in $\pi$ up to a constant, that is we have a sequence ${b_j, j=1,..m}$, $b_j \ge 0$ and $\sum b_j=B$. We want to generate observations from $\pi$ with $\pi_j=b_j/B$. Then the above algorithm works without the need to find B because
+$$
+\alpha_{ij}= \min \left( \frac{\pi_jq_{ji}}{\pi_iq_{ij}},1 \right)= \min \left( \frac{b_jq_{ji}}{b_iq_{ij}},1 \right)
+$$
+
+With this we get the Metropolis-Hastings Algorithm:
+
+1) Choose an irreducible Markov chain with transition probabilities $Q$ and choose some integer k between 1 and m
+
+2) Let n=0 and $X_0=k$
+
+3) generate a r.v. $X$ such that $P(X=j)=q_{{x_0}j}$ and generate $U \sim U[0,1]$
+
+4) If $U<b_Xq_{X,X_n}/b_{X_n}q_{X_n,X}$ then $NS=X$, else $NS=X_n$
+
+5) $n=n+1$, $X_n=NS$
+
+6) Go to 3
+
+Notice the similarities between this algorithm and the accept-reject method. The main difference, and the reason this algorithm is so useful, are that here we don't need to find c, which usually requires a maximization and we don't need B, as discussed above.
+
+####**Example** 
+Let's begin with a very simple example, $X \sim Bin(N,p)$. First we need the "proposal" distribution $Q$. We are actually quite free to make almost any choice here. Let's try the following: if $X[k]=x$, we next randomly choose either $x-1$, $x$, or $x+1$. If $x=0$ we choose either 0, 1 or 2 and if $x=N$ we randomly choose $x=N-2,N-1 \text { or } N$. Therefore in either case we have 
+$q_{ij} = 1/3$ and so
+$$
+b_iq_{i,j}/b_jq_{j,i} = \text{dbinom}(i,N,p)/\text{dbinom}(j,N,p) 
+$$
+Let's see what the R program looks like:
+```{r}
+N <- 5
+p <- 0.5
+B <- 1e4
+X <- rep(0, B)
+for(i in 2:B){
+  if(X[i-1]==0) NS <- sample(0:2, 1)
+  if(X[i-1]>0 & X[i-1]<N) NS <- sample(X[i-1]+c(-1:1), 1)
+  if(X[i-1]==N) NS <- sample((N-2):N, 1)  
+  if(runif(1) < dbinom(NS,N,p)/dbinom(X[i-1],N,p)) X[i] <- NS
+  else X[i] <- X[i-1]
+}
+out <- matrix(0, 2, N+1)
+colnames(out) <- 0:N
+out[1, ] <- round(table(X)/B, 3)
+out[2, ] <- round(dbinom(0:N, N, p), 3)
+out
+```
+and this is works very well.
+
+Notice another big difference between the accept-reject algorithm and Metrolopis-Hastings: there we need a distribution on the whole support of X that we can generate. Here we only need one that let's us go from one observation to another.
+
+####**Example** 
+
+Let's generate $X\sim G(p)$ so $b_j=P(X=j)=pq^{j-1}$. Therefore we have
+
+$$b_i/b_j= \left(pq^{i-1}\right)/\left(pq^{j-1}\right)=q^{i-j}$$
+
+
+As a proposal distribution we will use
+
+$$
+\begin{aligned}
+&q_{11}=\frac12  \\
+&q_{x,x+1} = \frac12\\
+&q_{x,x-1} = \frac12\text{ if }x>1 \\
+\end{aligned}
+$$
+so always $q_{i,j}/q_{j,i}=1$.
+
+So now
+
+$$
+\begin{aligned}
+&b_1q_{1,1}/b_1q_{1,1} = 1\\
+&b_2q_{2,1}/b_1q_{1,2} = q \\
+&\text{Let } x>1\\
+&b_xq_{x,x+1}/b_{x+1}q_{x+1,x} = 1/q\\ 
+&b_{x+1}q_{x+1,x}/b_xq_{x,x+1} =q\\
+\end{aligned}
+$$
+
+```{r}
+rgeomMCMC <- function(p) {
+  B <- 1e4
+  X <- rep(1, B)
+  for(i in 2:B){
+    which <- TRUE    
+    if(X[i-1]==1) {
+      NS <- sample(1:2, 1)
+      if(NS==2)  which <- (runif(1) < 1-p)
+    }
+    else {
+      NS <- X[i-1]+sample(c(-1, 1), 1)
+      if(NS==X[i-1]+1) which <- (runif(1) < 1-p)
+      else which <- (runif(1) < 1/(1-p))
+    }   
+    if(which) X[i] <- NS
+    else X[i] <- X[i-1]
+  }
+  tmp <- table(X)/B
+  x <- as.numeric(names(tmp))
+  out <- matrix(0, 2, length(tmp))
+  colnames(out) <- x
+  out[1, ] <- round(tmp, 3)
+  out[2, ] <- round(p*(1-p)^(x-1), 3)
+  head(out, 10)
+}
+rgeomMCMC(0.25)
+rgeomMCMC(0.5)
+rgeomMCMC(0.75)
+```
+
+
+####**Example** 
+say we want to generate $X \sim N(\mu, \sigma)$.
+
+Notice that this is a continuous random variable, but as we will see, that makes no real difference!
+
+Again we need a proposal distribution. Let's consider two: if we are at the point x we choose the next point from 
+
+a) $U[x-\epsilon , x+\epsilon ]$ for some $\epsilon >0$.   
+b) $N(x, \epsilon )$ for some $\epsilon >0$.
+
+Now
+
+a) $q_{xy}=1/(2 \epsilon)$ if $x-\epsilon <y<x+\epsilon$, 0 otherwise
+
+b) $q_{xy} = dnorm(y, x, \epsilon)$
+
+So the algorithm uses:
+
+a) $X=\text{runif}(1,X_n-\epsilon, X_n + \epsilon ])$  
+
+ 
+$$
+\begin{aligned}
+&b_Xq_{X,X_n}/b_{X_n}q_{X_n,X} = \\
+&\frac{\text{dnorm}(X, \mu, \sigma)}{\text{dnorm}(X_n, \mu, \sigma)}
+\end{aligned}
+$$
+
+b) $X=\text{rnorm}(1, X_n, \epsilon)$
+ 
+$$
+\begin{aligned}
+&b_X q_{X,X_n}/b_{X_n} q_{X_n,X} =\\
+&\frac{\text{dnorm}(X, \mu, \sigma)\text{dnorm}(X_n, X, \epsilon)}{\text{dnorm}(X_n, \mu, \sigma)\text{dnorm}(X, X_n, \epsilon)}
+\end{aligned}
+$$
+
+This is implemented in 
+
+```{r}
+normMCMC <- function(method=1, n=10000, 
+                     eps=1, mu=0, sig = 1,
+                     start=1, Graph="Both") {
+    Xn <- rep(0, n)
+    for (i in 2:n) {
+        U <- runif(1)
+        Accept <- FALSE
+        if(method == 1) {
+          X <- runif(1, Xn[i-1]-eps, Xn[i-1]+eps)
+          if(U<dnorm(X, mu, sig)/dnorm(Xn[i-1], mu, sig)) 
+            Accept <- TRUE
+        }
+        if(method==2) {
+            X <- rnorm(1, Xn[i-1], eps)
+            if(U<dnorm(X, mu, sig)*
+               dnorm(Xn[i-1], X, eps)/
+               dnorm(Xn[i-1], mu, sig)/
+               dnorm(X, Xn[i-1], eps)) 
+              Accept <- TRUE
+        }
+        if(Accept) {
+            NS <- X
+        }
+        else {
+            NS <- Xn[i-1]
+        }
+        Xn[i] <- NS
+    }
+    if(Graph=="Both") {
+       par(mfrow = c(1, 2))
+
+    }
+    if(Graph=="Burn")
+       plot(1:n, Xn, type = "l")
+    if(Graph=="Hist") {
+      hist(Xn[start:10000], breaks=100, freq=FALSE, 
+         xlab="x", main = "")
+      x <- seq(mu-3*sig, mu+3*sig, length = 20)
+      lines(x, dnorm(x, mu, sig),
+          lwd=2, col="blue")
+    }
+    
+}
+```
+
+```{r}
+normMCMC(method=1, mu=0, sig=1, eps=0.1, Graph="Hist")
+```
+
+That's not very good. Let's try a different $\epsilon$:
+```{r}
+normMCMC(method=1, mu=0, sig=1, eps=0.5, Graph="Hist")
+```
+
+And method 2:
+
+```{r}
+normMCMC(method=2, mu=0, sig=1, eps=0.5, Graph="Hist")
+```
+
+As we can see it takes a little bit of trial and error to get the right proposal distribution (here the $\epsilon$).
+
+Compare this algorithm, and its implementation, with the accept-reject algorithm. Here we needed practically no calculations at all.
+
+`r hl()$hr()`
+
+There are two main difficulties with the MCMC method in practice:
+
+1) It can take a lot of computational effort, for example if we want to generate just 1 variate at a time we still might have to generate 10000 others before the stationary distribution is reached.
+
+2) It can be very difficult in practice to know when the stationary distribution is reached, that is when the "burn-in" period is over.
+
+####**Example**
+
+Let's consider the normal again, but this time with $\mu=25$. Our routine always starts as 0, so it will take a while until it gets to likely values of X. One can look at this by considering the sequence of generated values:
+
+```{r}
+normMCMC(method=1, mu=25, sig=1, eps=0.5, Graph="Burn")
+```
+
+so we should disregard the first 500(?) or so variates:
+
+```{r}
+normMCMC(method=1, mu=25, sig=1, eps=0.5, 
+         start=501, Graph="Hist")
+```
+
+There are  examples where the chain seems to have settled down for very long periods but is not actually at the stationary distribution yet.
+
+####**Example** 
+say we want to generate r.v.'s X such that $P(X=k)=c/k^r$, $r>1$ and $k=1,2, ..$. We did this already for $k=2$ using the accept-reject algorithm, with the Cauchy as the Y distribution. Now we would need to know c for any value of r, which is not possible. Let's instead use MH. First we use the following proposal distribution:
+
+if $X_n \le m$, $X \sim U\left\{1..(2m+1)\right\}$ for some m (here m=10) otherwise $X \sim U\left\{-m, m\right\}$
+
+so $q_{X,X_n} = 1/(2m+1)$ and 
+$$
+\begin{aligned}
+b_Xq_{X,X_n}/b_{X_n}q_{X_n,X} = \\
+\frac{\text{c}/X^r}{\text{c}/X_n^r}= \left( \frac{X_n}{X} \right)^r
+\end{aligned}
+$$
+
+```{r}
+mcmcInvr <- function(which=1, n=10000, r=2, m=10) {
+    Xn = rep(1, n)
+    if (which == 1) {
+        for (i in 2:n) {
+            if (Xn[i - 1] <= m) 
+                X <- sample(1:(2 * m + 1), size = 1)
+            else X <- sample(Xn[i - 1] + c(-m:m), size = 1)
+            if (runif(1) < (Xn[i - 1]/X)^r) 
+                Xn[i] <- X
+            else Xn[i] <- Xn[i - 1]
+        }
+    }
+    if (which == 2) {
+        q <- function(x, y) {
+            dbinom(x - 1, 2 * y, 0.5)
+        }
+        for (i in 2:n) {
+            X <- rbinom(1, 2 * Xn[i - 1], 0.5) + 1
+            if (runif(1) < (Xn[i - 1]/X)^r * q(X, Xn[i - 1])/q(Xn[i - 
+                1], X)) 
+                Xn[i] <- X
+            else Xn[i] <- Xn[i - 1]
+        }
+    }
+    plot(1:n, cumsum(Xn)/c(1:n), type="l")
+    x <- Xn[1001:n]
+    z <- table(x)/length(x)
+    k <- as.numeric(names(z))
+    const <- 1/sum(c(1:max(x))^(-r))
+    truep <- const/k^r
+    z <- rbind(z, truep)
+    round(z[,truep>1/1000],3)
+}
+mcmcInvr()
+```
+
+next let's try $X \sim Bin(2Xn[i-1], 0.5)+1$ . This shows that not all choice of Q work:
+```{r}
+mcmcInvr(2)
+```
+
+
+####**Example** 
+Let's consider a normal mixture model, that is we have $N_1 \sim N(\mu_1, \sigma_1)$, $N_2 \sim N(\mu_2, \sigma_2)$ and $Z \sim Ber(\alpha )$ and we observe
+$$
+X = ZN_1+(1-Z)N_2
+$$
+let's say we want to carry out a **Bayesian analysis**. This means we will treat the parameters as random variables. To keep things simple we assume that $\mu_1$, $\sigma_1$, $\mu_2$, $\sigma_2$ are known and the only parameter is $\alpha$. As a rv $\alpha$ has a distribution, called the **prior**. An obvious choice is a beta distribution (because $0 \le \alpha \le 1$), and again to keep things simple we will use $\alpha \sim \text{Beta}(\tau, \tau)$, that is we use a prior centered at 0.5. In a standard Bayesian analysis we will have to calculate the **posterior** distribution, that conditional density of
+
+$$
+\alpha | X_1=x_1, X_2=x_2,..,X_n=x_n
+$$
+
+![](graphs/mark26.png)
+ 
+Finding the exact posterior distribution means finding the marginal distribution which in this case is hopeless analytically. Fortunately we don't need it for the Metropolis-Hastings algorithm.
+
+Here is the routine:
+
+```{r}
+mcmcMix <- function(truealpha, N, mu1=0, sig1=1, 
+                    mu2=2, sig2=0.5, B=20000, eps=1.0) {
+    set.seed(1111)
+    Z <- sample(c(0, 1), size=N, replace=TRUE, 
+                prob = c(1-truealpha, truealpha))
+    data <- (1-Z)*rnorm(N, mu1, sig1)+ 
+                Z*rnorm(N, mu2, sig2)
+    phi1 <- dnorm(data, mu1, sig1)
+    phi2 <- dnorm(data, mu2, sig2)
+    f <- function(x, y) {
+        exp(sum(log((1-x)*phi1+x*phi2)-
+                log((1-y)*phi1+y*phi2) ))
+    }
+    Xn <- rep(0.5, B)
+    for (i in 2:B) {
+        X <- runif(1, max(0, Xn[i-1]-eps), 
+                   min(1, Xn[i-1]+eps))
+        X <- runif(1)
+        if (runif(1) < f(X, Xn[i-1])) {
+            Xn[i] <- X
+        }
+        else {
+            Xn[i] <- Xn[i-1]
+        }
+    }
+    par(mfrow = c(1, 2))
+    plot(1:B, Xn, type = "l")
+    hist(Xn[(B/2):B], breaks = 100)
+    round(c(truealpha, quantile(Xn[(B/2):B], 
+                        c(0.05, 0.5, 0.95))), 3)
+}
+mcmcMix(truealpha=0.25, N=500, eps=0.15)
+```
+
+
+####**Example**  
+Let's generate data from the rv $(X,Y)$ with $f(x,y)=c/(x+y)$ $1<x<2$, $1<y<2$ using the Metropolis-Hastings algorithm. 
+
+Here we will use the following Markov process: if $X_n[i-1, 1]=x$, choose 
+
+$X \sim U[1,2\epsilon ]$ if $x<1+2\epsilon$
+
+$X \sim U[x-\epsilon, x+\epsilon]$ if $1+\epsilon <x<2-\epsilon$
+  
+$X \sim U[2-2\epsilon , 2]$ if $x>2-2\epsilon$
+
+for some $\epsilon >0$, and the same for $Y$.
+
+```{r}
+ mcmcXY <- function (eps, n = 3000) 
+{
+    f <- function(x) 1/sum(x)
+    Q <- function(x) {
+        if(x<1+2*eps) 
+            return(runif(1, 1, 1+2*eps))
+        if (x>2-2*eps) 
+            return(runif(1, 2-2*eps, 2))
+        return(runif(1, x-eps, x+eps))
+    }
+    Xn <- matrix(1.5, n, 2)
+    X <- c(0, 0)
+    for (i in 2:n) {
+        X[1] <- Q(Xn[i-1, 1])
+        X[2] <- Q(Xn[i-1, 2])
+        if(runif(1) < f(X)/f(Xn[i-1, ])) {
+            Xn[i, ] <- X
+        }
+        else {
+            Xn[i, ] <- Xn[i-1, ]
+        }
+    }
+    par(mfrow = c(2, 2))
+    plot(1:n, Xn[, 1], type = "l")
+    plot(1:n, Xn[, 2], type = "l")
+    x = seq(1, 2.2, 0.01)
+    hist(Xn[1000:n, 1], breaks=50, freq=FALSE, main="", 
+        density=-1)
+    lines(x, 2.943*(log(x+2) - log(x+1)), lwd = 2)
+    hist(Xn[1000:n, 2], breaks=50, freq=FALSE, main="", 
+        density=-1)
+    lines(x, 2.943*(log(x+2) - log(x+1)), lwd = 2)
+    
+}
+
+```
+
+```{r mcmcXY-0.5}
+mcmcXY(eps=0.5)
+```
+
+Note that for $\epsilon <0.4$ or so this does not work, the chain gets stuck close to the corners. 
+
+Of course for $\epsilon =0.5$ we have $X[i] \sim U[1,2]$, so the chain is an independent sequence, and the method still works!
+
+####**Example** 
+Recall the example at the end of the section on general methods for generating data: we have a random vector $(X_1, .. , X_d)$ with density 
+$$
+f(x_1, .. , x_d) = c\prod x_i \text{, } 0\le x_1 \le .. \le x_d \le 1
+$$
+To generate data from this density use the following Markov process Q:
+
+if Y is the last point, randomly choose a coordinate j from 1:d and choose X=Y except that 
+$$
+X_j \sim U[Y_{j-1}, Y_{j+1}] 
+$$
+
+(with $Y_0 =0$ and $Y_{d+1}=1$). Notice that X again is a possible point from this rv and that 
+
+$$
+b_Xq_{X,X_n}/b_{X_n}q_{X_n,X} = X_j/Y_j
+$$
+
+```{r mcmcd}
+mcmcd <- function (n = 1e4, d = 10) 
+{
+    Xn <- matrix(0, n, d)
+    Xn[1, ] <- c(1:d)/(d+1)
+    for(i in 2:n) {
+        X <- Xn[i-1, ]
+        j <- sample(1:d, 1)
+        if (j==1) 
+            X[1] <- runif(1, 0, X[2])
+        if (j==d) 
+            X[d] <- runif(1, X[d-1], 1)
+        if (j>1 & j<d) 
+            X[j] <- runif(1, X[j-1], X[j+1])
+        Xn[i, ] <- Xn[i-1, ]
+        if (runif(1) < X[j]/Xn[i-1, j]) 
+            Xn[i, j] <- X[j]
+    }
+    Xn <- Xn[1000:n, ]
+    if(d==2) {
+        par(mfrow = c(2, 2))
+        hist(Xn[, 1], breaks = 50, freq = FALSE)
+        x <- seq(0, 1, 0.01)
+        lines(x, 4*x*(1-x^2))
+        hist(Xn[, 2], breaks = 50, freq = FALSE)
+        lines(x, 4*x^3)
+    }
+    if(d==3) {
+        par(mfrow = c(2, 2))
+        hist(Xn[, 1], breaks=50, freq=FALSE, main="")
+        x <- seq(0, 1, 0.01)
+        lines(x, 6*x*(1-x^2)^2)
+        hist(Xn[, 2], breaks=50, freq=FALSE, main="")
+        lines(x, 12*x^3*(1-x^2))
+        hist(Xn[, 3], breaks=50, freq=FALSE, main="")
+        lines(x, 6*x^5)
+    }
+    if(d>3) {
+        par(mfrow = c(1, 1))
+        hist(Xn[, d], breaks=50, freq=FALSE, main="")
+        x <- seq(0, 1, 0.01)
+        lines(x, 2*d*x^(2*d-1))
+    }
+    
+}
+```
+
+
+This seems almost to easy! How can we verify that this indeed generates the right data? In general this is really impossible, but let's at least do it for some special cases:
+
+d=2:
+
+![](graphs/mark29.png)
+```{r mcmcd2}
+mcmcd(d=2)
+```
+
+d=3:   
+
+![](graphs/mark210.png)
+
+```{r mcmcd3}
+mcmcd(d=3)
+```
+
+Notice that 
+
+if d=2 $f_{x_2}(x)=4x^3$
+
+if d=3 $f_{x_3}(x)=6x^5$
+
+so maybe
+
+$f_{x_d}(x)=2dx^{2d-1}$ ?
+
+```{r mcmcd10}
+mcmcd(d=10)
+```
+
+this appears to be true
+
+####**Example**
+let $(X,Y)$ be a random vector which takes values uniformly on the unit circle, that $f(x,y)=1/(2\pi)$ for $\left\{(x,y): x^2 +y^2 =1 \right\}$. We want to generate data from $(X,Y)$. 
+
+this is quite easy to do with polar coordinates: let $Z \sim U[0,2\pi ]$ and set $X= \sin(Z)$, $Y~\cos(Z)$, done in **mcmcCircle(1)**
+
+```{r}
+mcmcCircle <- function (which = 1, n = 2 * 1e+05, eps = 0.2) 
+{
+    xy <- matrix(0, n, 2)
+    if (which == 1) {
+        phi <- runif(n, 0, 2 * pi)
+        xy[, 1] <- sin(phi)
+        xy[, 2] <- cos(phi)
+    }
+    if (which == 2) {
+        xy[1, ] <- c(1, 0)
+        for (i in 2:n) {
+            u <- runif(1, xy[i - 1, 1] - eps, xy[i - 1, 1] + 
+                eps)
+            v <- runif(1, xy[i - 1, 2] - eps, xy[i - 1, 2] + 
+                eps)
+            xy[i, ] <- c(u, v)/sqrt(u^2 + v^2)
+        }
+    }
+    par(mfrow = c(2, 2))
+    plot(xy, pch = ".")
+    plot(1:n, cumsum(xy[, 1])/c(1:n), type = "l")
+    lines(1:n, cumsum(xy[, 2])/c(1:n), col = "blue")
+    hist(xy[c((n/2):n), 1], 100, freq=FALSE, main = "", xlab = "x")
+    hist(xy[c((n/2):n), 2], 100, freq=FALSE, main = "", xlab = "y")
+  
+}
+mcmcCircle(1)
+```
+
+how about doing it with MCMC? The problem here is that we need to choose another point, again on the circle. Let's do this: we pick a point uniformly in 
+$$
+[ x- \epsilon, x+ \epsilon ] \text{ x } [ y-\epsilon,y+\epsilon ]
+$$
+ and then find the point on the circle closest to it.
+ 
+How can we find this point? we need to 
+
+![](graphs/mcmc114b.png)
+
+and this is done in 
+
+```{r}
+mcmcCircle(2)
+```
+
+The advantage of this solution is that it can be generalized: say we want to pick (X,Y) uniformly from the points on the curve with $g(x,y)=0$. Now if this is not a circle the polar coordinates don't help but the MCMC solution still works (although finding the point on the curve closest to $(u,v)$ probably now means solving a nonlinear system!) 
+
+####**Example**
+A standard exercise in probability is to show that if $X,Y$ are iid Pois($\lambda$)
+$$
+X|X+Y=n \sim \text{Bin}(n,1/2)
+$$
+and so 
+$$
+E[X|X+Y=n]=n/2
+$$
+Let's say we want to generalize this and find 
+$$
+E[X_1|X_1+..+X_d=n]
+$$
+In a direct simulation approach we would do the following:
+
+1) generate $X_1 ,..,X_d$ iid P($\lambda$) 
+
+2) if $X_1 +..+ X_d =n$ set $Z=X_1$, otherwise go to 1)
+
+3) repeat 1 and 2 say 1000 times and the find the mean of the Z
+
+The problem is that if d is not small we will rarely find $X_1 +..+ X_d =n$ and so we will need to run through 1 and 2 many times to find an acceptable $X_1$. Of course we have $X_1 +..+ X_d \sim P(d \lambda)$, so 
+
+![](graphs/mark212.png)
+
+for example if d=5, $\lambda =1$ and n=10 we have p=0.018, so we would find a good candidate only every 1/0.018=55 tries.
+
+**mcmcPois(1)** does it anyway.
+```{r}
+mcmcPois <- function (which = 1, d = 2, n = 2 * d, lambda = 1) 
+{
+    if (which == 1) {
+        m = 1000
+        x1 = rep(0, m)
+        counter = 0
+        for (i in 1:m) {
+            repeat {
+                counter = counter + 1
+                x = rpois(d, lambda)
+                if (sum(x) == n) 
+                  break
+            }
+            x1[i] = x[1]
+        }
+        return(round(mean(x1), 2))
+    }
+    if (which == 2) {
+        m = 11000
+        x1 = rep(0, m)
+        x = c(n, rep(0, d - 1))
+        for (i in 1:m) {
+            y = x
+            I = sample(1:d, size = 2)
+            x[I[1]] = rpois(1, lambda)
+            x[I[2]] = n - sum(x[-I[2]])
+            if (runif(1) > dpois(x[I[1]], lambda)/dpois(y[I[1]], 
+                lambda)) 
+                x = y
+            x1[i] = x[1]
+        }
+        return(round(mean(x1[1001:m]), 2))
+    }
+}
+```
+
+Now let's use the Metropolis-Hastings algorithm. We begin with the point $(n, 0,..,0)$. Then in each step we choose two coordinates with
+
+$i \sim U[1,..,d]$, $j \sim U[1,..,d]$, $i\ne j$ and $z \sim rpois(1, \lambda)$ 
+
+Now we set $x^{(k+1)}=x^{(k)}$
+
+Finally if 
+
+$U[0,1] < \text{dpois}(z, \lambda )/\text{dpois}(x[i], \lambda)$ 
+
+we set 
+
+$x^{(k+1)}[i]=z$, $x^{(k+1)}[j]=n-\sum x^{(k+1)}[-i]$
+
+so that again we have $x_1 +..+ x_d =n$
+
+In this case we can use the direct simulation as a check on the MCMC simulation, at least where the direct simulation is not to slow. First let's check the case d=2, $\lambda =1.0$, where we know the correct answer: n/2. The dots are the estimated values using the MCMC algorithm 
+
+```{r}
+for(i in 2:5) {
+  print(c(i, mcmcPois(1, d=i), mcmcPois(2, d=i)))
+}  
+```
+
+Next consider the case where n is the right size so that $X_1 +..+ X_d=n$ happens reasonably often, namely $n=d \lambda$. Using $\lambda =2$ we find
+
+![](graphs/mark213.png)
+
+so it appears our MCMC simulation works.
+
+Now let's see whether we can use our simulation to derive a formula for  
+
+$\mu;(d,n, \lambda)=E[X_1 | X_1 +..+ X_d = n]$
+
+In the next graph we have the plots for $\lambda =1$, $n=1:20$ and $d=3:11$ together with the least squares regression lines:
+
+![](graphs/mark214.png) 
+
+It appears that as a function of n $\mu (n,d,1)$ is linear with an intercept of 0. How about its dependence on d? In the next graph we have the plot of n vs. the slope of the least squares regression lines, together with several transformations:
+
+![](graphs/mark215.png)
+
+The log-log transform yields a straight line relationship! Its equation is given by  
+
+$$
+y = -0.02040 -0.98070x
+$$
+so it seems the intercept might be 0 and the slope -1, which means 
+$\log (\mu (d,n,1))$ proportional to $-\log(d)$
+  
+    or
+  
+$\mu (d,n,1)$ proportional to 1/d
+  
+The next graph has the slopes in the original scale, with the 1/d line:
+
+![](graphs/mark216.png)
+
+and that seems to fit really well! So now we know (or at least suspect) 
+
+$]\mu (d,n,1)=n/d$
+
+ which fits the known result ($\mu (2,n,1)=n/2)$ perfectly!
+
+Last, the dependence on $\lambda$. In the next graph we do the simulation for n=5, d=3, 4, 5 and 6 and $\lambda$ from 0.1 to 10: 
+
+![](graphs/mark217.png)
+
+It seems there is no dependence on $\lambda$, and so we find our function:
+
+$$
+\mu (d,n, \lambda)=n/d
+$$
+Actually, we can also just do the math:
+
+![](graphs/mark218.png)
+
+And finally, a really easy proof:
+
+$$
+t=E[\sum X | \sum X = t] = \sum E[X_i |\sum X=t]=nE[X_1|\sum X=t]
+$$
+
+####**Example**
+let's write a "general one-dim data generator" routine. That is, for any function f with 
+
+$$
+f(x)\ge 0 \text{ on } \left[ A,B \right] \\
+c = \int_A^B f(x)dx < \infty
+$$
+we want our routine to generate data from the corresponding density g(x)=f(x)/c.
+
+One way to do this would be to find c via numerical integration and use accept-reject. Instead we will use the Metropolis-Hastings algorithm.
+
+Because f is defined on a finite interval we can use 
+$$
+q_{x,y} = \text{runif}(1,A,B)
+$$
+
+Then
+
+$$
+\begin{aligned}
+&b_x q_{x,y} / (b_y q_{y,x})  = \\
+&f(x)(1/(B-A)/[f(y)(1/(B-A))] = \\
+&f(x)/f(y)
+\end{aligned}
+$$
+
+this is done in **mcmcf**, which also uses the generated data to find c, draws the histogram and adds the true density. 
+
+```{r}
+ mcmcf <- function (fun, A=0, B=1, n=1e5, m=1e4) 
+{
+    f <- function(x) {
+        eval(parse(text=fun),envir=list(x))
+    }
+    x<-rep(0, n)
+    x[1] <- (A+B)/2
+    for(i in 2:n) {
+        y <- runif(1,A,B)
+        if(runif(1)<f(y)/f(x[i-1])) x[i]<-y
+        else x[i]<-x[i-1]
+    }
+    hist(x,n=100, freq=FALSE, main="")    
+    z<-seq(A,B,length=250)
+    fz <- f(z)
+    I <- sum( (fz[-1]+fz[-250]))/2*(z[2]-z[1])
+    lines(z,fz/I,lwd=2)
+  
+ }
+mcmcf("1+x^2")
+```
+
+####**Example**
+say the random vector $(X_1, X_2, X_3)$ has density 
+
+$$
+f(i,j,k) = 
+\frac{c}{i^2+j^2+k^2} \text{ if } i+j+k=M
+$$
+for some known M, i,j and k any integer (except if M=0 i=j=k=0 is not allowed.)
+
+Now for this rv none of the methods we discussed before is going to work. Let's use Metropolis-Hastings as follows:
+
+1) select two coordinates at random: 
+
+```{r, eval=FALSE}
+d <- sample(1:3, size=2)
+```
+
+2) select a new value for x[i,d[1]] with 
+
+```{r, eval=FALSE}
+y <- x[i-1, d[1] + sample(-l:l, size=1)]
+```
+
+(and we can play around with different values of l)
+
+3) set x[i,d[2]] so that sum(x[i,])=M
+
+$q_{x,y} = 1/(2*l+1)$ for all x and y with $|x-y| \le l$ 
+
+$b_x = c/(i^2 + j^2 + k^2 )$
+
+and so 
+
+$$
+\begin{aligned}
+&b_x q_{x,y} / (b_y q_{y,x})= \\
+&\left[ c/(i^2 + j^2 + k^2 ) \right]/\left[ c/(u^2 + v^2 + z^2 )\right] = \\
+&(u^2 + v^2 + z^2 )/(i^2 + j^2 + k^2)
+\end{aligned}
+$$
+
+One problem here is that this rv is so complicated, it is not even clear what we could do to check that our routine works.  

@@ -1,0 +1,329 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Markov Chain Monte Carlo - MCMC
+
+## Discrete - Time Markov Chains
+
+Often in this course we started an  example  with "Let $X_1, .., X_n$ be an iid sequence ...". This independence assumption makes a lot of sense in many statistics problems, mainly when the data comes from a random sample. But what happens if the data is not independent?  
+In that case the most important thing is to describe the dependence structure of that data, that is to say what the relationship of  $X_i$ and $X_k$ is. There many such structures. In this section we will study one of the most common, called a Markov chain.
+
+The sequence of r.v.  $X_1$,  $X_2$, .. is said to be a Markov chain if for any event $A$ we have 
+$$
+P(X_n \in A | X_1 = x_1, .., X_{n-1}=x_{n-1}) = \\
+P(X_n \in A | X_{n-1} = x_{n-1})
+$$
+that is $X_n$ depends only on $X_{n-1}$ but not on any of the r.v. before it.
+
+####**Example** (Random Walk) 
+
+Say we flip a coin repeatedly. Let the random variable $Y_i$ be 1 if the $i^th$ flip is heads, -1 otherwise.
+
+Now let 
+$$
+X_n = \sum^n_{i=1} Y_i
+$$
+Clearly we have 
+
+![](graphs/mark11.png)
+
+If we think of the index n as a time variable, then all that matters for the state of the system at time n is where it was at time n-1, but not on how it got to that state.
+
+The random walk above is a discrete-time stochastic process because the time variable n takes discrete values (1,2, etc.) There are also continuous time stochastic processes $\left\{ X(t), t \ge 0 \right\}$. 
+
+Our random walk  example  is also a discrete state space stochastic process because the r.v. $X_n$ can only take countably many values (0, &plusmn;1,&plusmn;2 etc.). Other stochastic processes might have a continuous state space.
+
+For a Markov chain (that is a stochastic process with a discrete state space) all the relevant (probability) information is contained in the probability to get from state i to state j in k steps. For k=1 this is contained in the transition matrix $P = (p_{ij})$, and in fact as we shall see that P is all we need.
+
+####**Example** (Random Walk, cont)
+
+Here we have $p_{ij} = 1/2$ if $|i-j|=1$, 0 otherwise
+
+####**Example** (Asymmetric Random Walk) 
+
+As above the state space are the integers but now we go from i to i+1 with probability p, to i-1 with probability q and stay at i with probability 1-p-q.
+
+####**Example** (Ehrenfest chain)
+
+Say we have two boxes, box 1 with k balls and box 2 with r-k balls. We pick one of the balls at random and move it to the other box. Let $X_n$ be the number of balls in box 1 at time n. We have
+$$
+\begin{aligned}
+&X_n  \in {0,1,..,r} \\
+&p_{k,k+1} = (r-k)/r \\
+&p_{k,k-1} = k/r \\
+&p_{i,j} = 0 \text{ otherwise}
+\end{aligned}
+$$
+
+Ehrenfest used this model to study the exchange of air molecules in two chambers connected by a small hole, so small that only one molecule at a time can pass through.
+
+Say we have a Markov chain  $\left\{ X_n \right\}$, $n=1,2,..$ with transition matrix P. Define the n-step transition matrix $P^{(n)}$ = $(p^{(n)}_{ij})$ by
+$$
+p^{(n)}_{ij} = P(X_n=j|X_1=i)
+$$
+
+Of course $P^{(1)} = P$. Now
+
+![](graphs/mark12.png)
+
+####**Example** (Ehrenfest chain)
+
+Let's find the 2-step transition matrix for the Ehrenfest chain with $r=3$. The transition matrix is given by
+
+![](graphs/mark13.png)
+
+and so the 2-step transition matrix is
+
+![](graphs/mark14.png)
+
+
+In order to find $P^{(n)}$ we could just find PPP..P n-times. With a little linear algebra this becomes easier: For many matrices P there exists a matrix U and a diagonal matrix D such that 
+$$
+P=UDU^{-1}
+$$
+Here is how to find U and D:
+
+First we need to find the eigenvalues of the matrix P, that is we need to find the solutions of the equations 
+$$
+Px=\lambda x
+$$
+This is equivalent to 
+$$
+\begin{aligned}
+&(P-\lambda I)x=0 \\
+&\text{or} \\
+&\det(P-\lambda I)=0
+\end{aligned}
+$$
+So we have:
+
+![](graphs/mark16.png)
+
+The D above now is the matrix with the eigenvalues on the diagonal.
+
+The columns of the matrix U are the corresponding eigenvectors (with Euclidean length 1), so for example  
+
+![](graphs/mark17.png)
+
+Of course we have $\det(P-\lambda I)=0$, so this system is does not have a unique solution. Setting $x_1=1$ we can then easily find a solution $x=(1,-1,1,-1)$.
+
+This vector has Euclidean length $\sqrt (1^2+(-1)^2+1^2+(-1)^2) = 2$, so the normalized eigenvector is $x=(1/2,-1/2,1/2,-1/2)$
+
+Similarly we can find eigenvectors for the other eigenvalues. 
+
+Alternatively (and a lot easier!) we can use the R function **eigen** to do the calculations for us!
+
+Why does this help in computing $P^{(n)}$? It turns out that we have 
+$$
+P^{(2)} = PP = UDU^{-1}UDU = UDDU^{-1} = UD^2 U^{-1}
+$$
+and 
+
+![](graphs/mark18.png)
+
+and in general we have $P^{(n)} = UD^n U^{-1}$.
+
+Let's find the 2-step and 3-step transition matrix of the Ehrenfest chain with $r=3$:
+```{r}
+r <- 3
+statespace <- 0:r
+pi <- choose(rep(r, r + 1), 0:r)/2^r
+P <- matrix(0, r + 1, r + 1)
+dimnames(P) <- list(statespace, statespace)
+P[1, 2] <- 1
+P[r + 1, r] <- 1
+for (k in 2:r) {
+    P[k, k - 1] <- (k - 1)/r
+    P[k, k + 1] <- (r - k + 1)/r
+}
+print(P, 3)
+D <- diag(eigen(P)$values)
+U <- eigen(P)$vectors
+print(round(U %*% D^2 %*% solve(U), 3))
+print(round(U %*% D^3 %*% solve(U), 3))
+```
+
+The routine **ehrenfest** with which=1 computes $P^{(n)}$ for the Ehrenfest chain.
+
+```{r}
+ehrenfest <- function (which = 1, n = 10000, r = 3) {
+    statespace <- 0:r
+    pi <- choose(rep(r, r + 1), 0:r)/2^r
+    P <- matrix(0, r + 1, r + 1)
+    dimnames(P) <- list(statespace, statespace)
+    P[1, 2] <- 1
+    P[r + 1, r] <- 1
+    for (k in 2:r) {
+        P[k, k - 1] <- (k - 1)/r
+        P[k, k + 1] <- (r - k + 1)/r
+    }
+    D <- diag(eigen(P)$values)
+    U <- eigen(P)$vectors
+    if (which == 1) {
+        return(round(U %*% D^n %*% solve(U), 4))
+    }
+    X <- rep(-1, n)
+    X[1] <- sample(statespace, size = 1, prob = pi)
+    for (i in 2:n) {
+        if (X[i - 1] == 0) {
+            X[i] <- 1
+            next
+        }
+        if (X[i - 1] == r) {
+            X[i] <- r - 1
+            next
+        }
+        X[i] <- sample(c(X[i-1]+1, X[i-1]-1), size=1, 
+            prob = c((r - X[i-1])/r, X[i-1]/r))
+    }
+    if (which == 4) {
+        return(X)
+    }
+    if (which == 2) {
+        return(rbind(pi, table(X)/n))
+    }
+    if (which == 3) {
+        print(c(mean(X), sum(0:r * pi)))
+        print(c(mean(X^2), sum((0:r)^2 * pi)))
+        print(c(mean(log(X + 1)), sum(log(0:r+1)*pi)))
+    }
+
+}
+ehrenfest(1, 1)
+ehrenfest(1, 2)
+ehrenfest(1, 3)
+```
+
+
+### Stationary Distribution
+
+Consider again the Ehrenfest chain, and compute $P^{(n)}$ for $n \rightarrow \infty$:
+```{r}
+print(round(U %*% D^10 %*% solve(U), 3))
+print(round(U %*% D^100 %*% solve(U), 3))
+```
+
+
+You notice that $P^{(n)}$ seems to converge to a limit. We will now study this limit.
+
+Let S be the state space of a Markov Chain X with transition matrix P. 
+
+Let $\pi$ be a "measure" on S. Then $\pi$ is called a stationary measure of X if $\pi^T P=\pi^T$.
+
+We won't discuss exactly what it means for $\pi$ to be a "measure". You can think of it in the same way as a probability distribution, only that we don't have $\sum \pi_i=1$.
+
+Note: 
+$$
+\pi^TP=\pi^T  \\
+(P^T\pi)^T=\pi^T  \\
+P^T\pi=\pi \\
+(P^T-I)\pi=0
+$$
+so again the system of equations is singular.
+
+####**Example** (Ehrenfest chain) 
+To find a (?) stationary measure we have to solve the system of equations
+$$
+p_{ij} = \sum_i \pi_i P_{ij}  \text{  }i=0,1..,r
+$$
+often we can get unique solution by requiring that $\pi$ be a proper probability distribution, that is that $\sum \pi_i = 1$.
+
+Here this means the system
+$$
+\begin{aligned}
+&\pi_0=1/3\pi_1 \\
+&\pi_1=\pi_0+2/3\pi_2 \\
+&\pi_2=2/3\pi_1 + \pi_3 \\
+&\pi_3=1/3\pi_2 \\
+&\pi_1+\pi_2+\pi_3=1
+\end{aligned}
+$$
+
+which has the solution 
+$$
+\pi = (1/8,3/8,3/8,1/8)
+$$
+In the general case we find the stationary measure
+$$
+\pi_i=\begin{pmatrix} r \\  j  \end{pmatrix}/2^j
+$$
+$i=0,..,r$.
+
+The interpretation is the following: Say we choose the initial state $X_0$ according to $\pi$, that is $P(X_0=i) = \pi_i$. Then $\pi_i$ is the long-run proportion of time the chain spends at state i, that is 
+
+$$
+\pi_i = \lim_{N\rightarrow \infty} \sum^N_{k=1} I[X_n=i]/N 
+$$
+
+
+####**Example** 
+Let's illustrate this for the Ehrenfest chain with r=3:
+```{r}
+r <- 3
+statespace <- 0:r
+pi <- choose(rep(r, r + 1), 0:r)/2^r
+n <- 1000
+X <- rep(-1, n)
+X[1] <- sample(statespace, size = 1, prob = pi)
+for (i in 2:n) {
+    if (X[i - 1] == 0) {
+        X[i] <- 1
+        next
+    }
+    if (X[i - 1] == r) {
+        X[i] <- r - 1
+        next
+    }
+    X[i] <- sample(c(X[i - 1] + 1, X[i - 1] - 1), size = 1, prob = c((r - X[i - 1])/r, X[i - 1]/r))
+}   
+print(rbind(pi, sim=table(X)/n), 3)
+```
+
+
+####**Example** (Random Walk) 
+Let S be the integers and define a Markov chain by $p_{i,i+1} = p$ and $p_{i,i-1} = q = 1-p$. A stationary measure is given by $\pi_i =1$ for all i because $(\pi P)_i = 1p+1q = 1$.
+
+Now assume $p \ne q$ and define $pi_i = (p/q)^i$. Then
+
+![](graphs/mark111.png)
+
+Note that this shows that stationary measure are not unique.
+
+One use of the stationary distribution is an extension of the WLLN to Markov chains. That is, say h is a function on the state space, then
+
+![](graphs/mark19.png)
+
+where Z is a r.v. with density $\pi$. 
+
+This is illustrated in **ehrenfest** with which=3 for $h(x)=x$, $h(x)=x^2$ and $h(x)=\log (x+1)$
+```{r}
+ehrenfest(3)
+```
+One of the main results for Markov chains is the following:
+
+If the Markov chain $\left\{ X_n \right\}$ is irreducible and ergodic, then
+
+![](graphs/mark110.png)
+
+####**Example** 
+Of course this result does not apply to the Ehrenfest chain, which is not aperiodic, but the result holds anyway as we have seen.
+
+####**Example** 
+consider the following Markov chain: if at i it next moves to i+1 with probability p or to 1 with probability 1-p. Let's find its stationary distribution: 
+
+![](graphs/mark114a.png)
+
+so the stationary distribution is a geometric! 

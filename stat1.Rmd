@@ -1,0 +1,361 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  pdf_document:
+    fig_caption: no
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+# Statistics
+
+## Basic Statistics
+
+A typical situation where we do a simulation is as follows: we have a rv X with probability model 
+$$
+P( \dot{} | \theta)
+$$
+that is we know the shape of the distribution but not (all of its) parameters. Also weh have $E[X] = \theta$. Now we generate X~1~, X~2~ .. X~n~ of these rv's. By the law of large numbers we then have
+$$
+\frac1n \sum X_i \rightarrow \theta
+$$
+
+What can we say about how good an estimate this is? How large does n have to be to achieve a certain precision?
+
+### Sample Mean and Sample Variance
+
+Suppose
+$$
+X_1, X_2, ..,X_n \text{  iid  } EX_i=\theta\text{  and  } VarX_i=\sigma^2
+$$
+let
+$$
+\overline X=\frac1n \sum X_i
+$$
+then
+$$
+E[\overline X]=\theta \\
+Var[\overline X]=\frac{\sigma^2}n
+$$
+
+According to the central limit theorem $\overline X$ has an approximately normal distribution, and therefore
+$$
+P \left( |\overline X - \theta | > c \frac\sigma{\sqrt n} \right) \approx 2(1-\Phi(c))
+$$
+
+where $\Phi$ is the cdf of a standard normal rv.
+
+This tells us how far from the true value our simulation estimate might be. For example: because $\Phi(2) \sim  0.975$, we find that the probability that $\overline X$ differs from $\theta$ by more than $2\sigma/\sqrt n$ is about 0.05.
+
+One problem with using this is that if we don't know $\theta$ we almost certainly don't know $\sigma$ either. So we have to estimate it as well:
+
+$$
+S^2=\frac1{n-1}\sum \left( X_i - \overline X \right)^2
+$$
+Now of course $E[S^2]=\sigma^2$.
+
+Generally this also changes the distribution:
+$$
+\sqrt n \left( \overline X - \theta  \right)/S \sim t_{n-1}
+$$
+but in our situation of simulation n is usually quite large, and then the t distribution is very close to the standard normal.
+
+Often this information is put together in the form of a **confidence interval**. Say our simulation yields X~1~,..,X~n~, then (if the normal approximation holds) 
+$$
+\overline X \pm z_{\alpha/2} \frac{S}{\sqrt n} 
+$$
+is a 100(1-$\alpha$)% confidence interval for $\theta$. Here z~$\alpha$~ is a critical value from the standard normal distribution, that is
+
+$P(Z>z_\alpha) = \alpha$
+
+where $Z\sim N(0,1)$. It is easily found in R with 
+
+$z_\alpha = \text{qnorm}(1-\alpha)$
+
+####**Example** 
+
+we want to estimate the integral 
+
+$$
+\int_0^1 \exp(-x^2)dx
+$$
+For this generate U~1~,..,U~n~ iid U[0,1]. Then 
+
+$$
+E[\exp(-U^2)]=\int_0^1 \exp(-x^2)dx
+$$
+
+and so if we set $X_i~ = exp(-U_i^2)$, $\overline X$ should converge to the integral. 
+
+Now a 90% CI for the integral is given by
+$$
+\overline X \pm 1.645 \frac{S}{\sqrt n} 
+$$
+
+```{r}
+f <- function(x) exp(-x^2)
+integrate(f, 0, 1)$value
+u <- runif(1e5)
+x <- exp(-u^2)
+mean(x)
+mean(x) + c(-1, 1)*qnorm(1-0.1)*sd(x)/sqrt(1e5)
+```
+
+
+But what does that mean, "90\% CI"? It is as follows: if we did this estimation ( or other simulations) over and over again, in the long run 90\% of the time the interval would contain the true value, 10\% of the time it would not.
+
+In **sb1** we run the simulation 1000 times and check how often the resulting interval contains the true value.
+
+```{r, echo=FALSE}     
+sb1 <- function (n = 100) {
+   f = function(x) {
+        exp(-x^2)
+    }
+    I = integrate(f, 0, 1)$value
+    print(paste("True Value of I:", round(I, 4)))
+    X = matrix(exp(-runif(n * 1000)^2), n, 1000)
+    I_est = apply(X, 2, mean)
+    S = apply(X, 2, sd)
+    z = qnorm(1-0.05)
+    low = I_est - z * S/sqrt(n)
+    high = I_est + z * S/sqrt(n)
+    bad = length(low[low > I]) + length(high[high < I])
+    print(paste("% of correct CI's for normal based interval:", 
+        (1000 - bad)/10))
+ 
+}
+sb1()
+```
+
+One issue is the question whether the central limit theorem actually holds. Again, in a simulation study this is easily verified, just draw a histogram, boxplot or normal probability plot.
+
+### Bootstrap Estimate of Standard Error 
+
+
+####**Example** 
+Consider Newcomb's measurements of the speed of light. The numbers are the deviations from 24800 nanoseconds:
+
+```{r}
+kable.nice(matrix(newcomb$Deviation, 
+                  ncol=6, byrow = TRUE))
+```
+
+We want to estimate the mean. However, there are a couple of outliers, and so we use 10\% timmed mean which eliminates the lowest and gighest 10\% of the data:
+
+```{r}
+ggplot(data=newcomb , aes(1, Deviation)) +
+  geom_boxplot()
+```
+
+```{r}
+mean(newcomb$Deviation, trim=0.1)
+```
+
+
+But how can we get a CI for the median? We don't have a formula for the standard error of the median.
+
+Instead we can use a method called the statistical bootstrap. It starts of very strangely: instead of sampling from a distribution as in a standard MC study, we will now **resample** the data itself, that is if the data is n observations X ~1~, .., X ~n~, then the bootstrap sample is also n numbers **with replacement** from X~1~, .., X~n~, that is X^*^~1~ is any of the original X~1~, .., X~n~ with probability 1/n. 
+
+In any one **bootstrap sample** an original observation, say X~1~, may appear once, several times, or not at all.
+
+####**Example** 
+say the data is (5.1, 2.3, 6.4, 7.8, 4.6), then one possible bootstrap sample is (6.4, 4.6, 2.3, 6.4, 5.1)
+
+Say we have a sample X~1~, .., X~n~ from some unknown distribution F and we wish to estimate some parameter $\theta = t(F)$. For this we find some estimate $\widehat \theta$. How accurate is $\widehat \theta$? 
+
+####**Example** 
+$X_1, .., X_n \sim F$,  $\theta = E(X_1)$ so
+$$
+t(F) = \int xf(x)dx \\
+\widehat \theta=\overline X
+$$
+####**Example** 
+$X_1, .., X_n \sim F$,  $\theta = Var(X_1)$ so
+$$
+t(F) = \int (x- \mu)^2f(x)dx \\
+\widehat \theta=s^2
+$$
+
+Here is the algorithm to find the bootstrap estimate of the standard error in $\widehat \theta$:
+
+1) Select B independent bootstrap samples $\mathbf{x}^{*1}$, .., $\mathbf{x}^{*B}$, each consisting of n data values drawn with replacement from $\mathbf{x}$.  Here B is usually on the order 500.
+
+2) Evaluate the bootstrap replication corresponding to each bootstrap sample, $\widehat \theta^*$, b=1,..,B
+
+3) Estimate the standard error $se(\widehat \theta)$ by the sample standard deviation of the bootstrap replications.
+
+####**Example** 
+say the data is (5.1, 2.3, 6.4, 7.8, 4.6) and we want to estimate the mean $\mu$, then 
+
+1) bootstrap sample 1:  $\mathbf{x}^{*1}= (6.4, 4.6, 2.3, 6.4, 5.1)$   so  $\widehat \theta^{*1} = (6.4+4.6+2.3+6.4+5.1)/5 = 4.96$
+
+2) bootstrap sample 2:  $\mathbf{x}^{*2}= (2.3, 6.4, 4.6, 2.3,7.8)$    so  $\widehat \theta^{*2} = (2.3+6.4+4.6+2.3+7.8)/5=4.68$
+
+and so on.
+
+
+####**Example** 
+Let's go back to the speed of light. There is a library called *bootstrap* in R to find the bootstrap samples
+
+```{r}
+library(bootstrap)
+thetastar <- 
+  bootstrap(newcomb$Deviation, 2000, 
+            mean, trim=0.1)$thetastar
+```
+and a confidence interval can be found with
+$$    
+\hat \theta \pm z_{\alpha/2} sd(\theta^*)
+$$
+Note there is no $\sqrt n$ because sd(thetastar) is already the standard error of the estimate, not the original data.
+
+```{r}
+cat("Normal Theory Intervals\n")
+round(mean(newcomb$Deviation, trim=0.1) + 
+        c(-1, 1)*qnorm(0.975)*sd(thetastar), 2)
+```
+
+```{r}
+bw <- diff(range(thetastar))/50 
+ggplot(data.frame(x=thetastar), aes(x)) +
+  geom_histogram(aes(y = ..density..),
+    color = "black", 
+    fill = "white", 
+    binwidth = bw) + 
+    labs(x = "x", y = "Density") 
+```    
+
+The histogram shows that the bootstrap estimates are indeed normal, which is often the case. If they are not we could use a CI based on percentiles as follows:
+
+Using this we find
+```{r}
+cat("Percentile Bootstrap Intervals\n")
+round(quantile(thetastar, c(0.025, 0.975)), 2)
+```
+
+This idea of the bootstrap is very strange: at first it seems we are getting more out of the data than we should. It is also a fairly new idea, invented by Bradley Efron in the 1980's. Here is some justification why it works:
+
+Let's say we have  $X_1, .., X_n$ iid F for some cdf F, and we want to investigate the properties of some parameter $\theta$ of F, for example its mean or its median. We have an estimator of $\theta$, say $s(X_1, .., X_n)$, for example 
+$$
+s(X_1, .., X_n) = \overline X
+$$
+in the case of the mean.  What is the error in  $s(X_1, .., X_n)$? In the case of the mean  this is very easy and we already know that the answer is  
+$$
+sd(X)/\sqrt n
+$$
+But what if we don't know it and we want to use Monte Carlo simulation to find out. Formally what this means is the following:
+
+1) generate  $X'_1, .., X'_n$ iid F  
+2) find $\theta_1 = s(X'_1, .., X'_n)$  
+3) repeat 1 and 2 many times (say 1000 times)    
+4) Study the MC estimates of $\theta$, for example find their standard deviation.
+
+But what do we do if we don't know that our sample came from F? A simple idea then is to replace sampling from the actual distribution function by sampling from the next best thing, the **empirical distribution function** defined as follows: 
+$$
+\hat F(x) = \frac1n\sum I_{[-\infty , x]}(X_i)=\frac{\text{Number of } X_i \le x}{n}
+$$
+Here is an example:
+```{r}
+x <- rnorm(50)
+plot(ecdf(x))
+curve(pnorm, -3, 3, add = TRUE)
+```
+so the idea of the bootstrap is simple: replace F in the simulation above with Fhat:
+
+1) generate  $X'_1, .., X'_n$ from $\hat F$  
+2) find $\theta_1 = s(X'_1, .., X'_n)$  
+3) repeat 1 and 2 many times (say 1000 times)    
+4) Study the MC estimates of $\theta$, for example find their standard deviation.
+
+What does it mean, generate data from the empirical distribution function of  $\hat F$? Actually it means finding a bootstrap sample as described above!
+
+####**Example** 
+Let's illustrate these ideas using an  example  from a very good book on the bootstrap, "An Introduction to the Bootstrap" by Bradley Efron and Robert Tibshirani. The following table shows the results of a small experiment, in which 7 out of 16 mice were randomly selected to receive a new medical treatment, while the remaining 9 mice were assigned to the control group. The treatment was intended to prolong survival after surgery. The data is the survival times in days:
+```{r, echo=FALSE}
+mice <-
+structure(list(treatment = c(94, 197, 16, 38, 99, 141, 23), control = c(52, 
+104, 146, 10, 50, 31, 40, 27, 46)), .Names = c("treatment", "control"
+))
+```
+```{r}
+mice
+```
+
+How can we answer the question on whether this new treatment is effective? First of course we can find the within group means and standard deviations:
+```{r}
+print(sapply(mice, mean), 4)
+print(sapply(mice, sd), 4)
+```
+so we see that the mice who received the treatment lived on average 30.63 days longer. But unfortunately the standard error of the difference is $28.93 = \sqrt{25.24^2 + 14.14^2}$, so we see that the observed difference 30.63 is only $30.63/28.93 = 1.05$ standard deviations above 0.
+
+Let's say next that instead of using the mean we wish to use the median to measure average survival. We find the following:
+```{r}
+print(sapply(mice, mean), 4)
+```
+
+Now we get a difference in median survival time of 48 days, but what is the standard error of this estimate? Of course there is a formula for the standard error of the median, but it is not simple and just finding it in a textbook would be some work. On the other hand we can use the bootstrap method to find it very easily:
+```{r}
+Diff.mean <- matrix(0, 1000, 2)
+Diff.median <- matrix(0, 1000, 2)
+for (i in 1:1000) {
+    x <- sample(mice$treatment, size = 7, replace = T)
+    y <- sample(mice$control, size = 9, replace = T)
+    Diff.mean[i, ] <- c(mean(x), mean(y))
+    Diff.median[i, ] <- c(median(x), median(y))
+}
+sd.mean <- apply(Diff.mean, 2, sd)
+sd.median <- apply(Diff.median, 2, sd)
+names(sd.mean) <- c("Treatment", "Control")
+names(sd.median) <- c("Treatment", "Control")
+print(sd.mean, 4)
+print(sd.median, 4)
+```
+
+we find that the standard error of the median in the treatment group is about 37, and for the control group it is about 13, so the standard error of the difference is $\sqrt(37^2+13^2)=39$, and so $48/39=1.2$.
+
+This is larger than the one for the mean, but still not statistically significant.
+
+####**Example**   
+How good is this bootstrap method, that is how well does it calculate the standard error? 
+
+Let's investigate this using a situation where we know the right answer: 
+
+Say we have n observations from N($\mu$,$\sigma$), then of course
+$$
+sd(\hat X) = \sigma/\sqrt n 
+$$
+In **bootex** we use both the direct estimate of $\sigma$ and the bootstrap estimator:
+```{r, echo=FALSE}
+bootex <-function (n,mu=0,sigma=1,B=1000,M=1000) 
+{
+        a=matrix(0,M,3)
+        for(i in 1:M) {
+              x=rnorm(n,mu,sigma)
+              a[i,1]=mean(x)
+              a[i,2]=sd(x)/sqrt(n)
+              xBoot=matrix(sample(x,size=n*B,replace=T),B,n)
+              a[i,3]=sd(apply(xBoot,1,mean))
+        }
+        hist(a[,2],100,border="red",density=-1,main="",xlab="")      
+        hist(a[,3],100,border="blue",density=-1,main="",xlab="",add=T)
+        Low=a[,1]-1.645*a[,2]
+        High=a[,1]+1.645*a[,2]
+        LowBoot=a[,1]-1.645*a[,3]
+        HighBoot=a[,1]+1.645*a[,3]        
+        print(head(cbind(a,Low,High,LowBoot,HighBoot)), 3)
+        c1=1-(sum(Low>mu)+sum(High<mu))/M
+        c2=1-(sum(LowBoot>mu)+sum(HighBoot<mu))/M
+        round(c(c1,c2)*100,1)
+}
+```
+```{r}
+bootex(25)
+```
+this shows the intervals of first six of 1000 runs and the actual coverage of 90% nominal intervals.

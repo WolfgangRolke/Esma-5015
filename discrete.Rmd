@@ -1,0 +1,190 @@
+---
+header-includes: \usepackage{color}
+                 \usepackage{float}
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: no
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+source("R/setup.rmd.R", local=TRUE)
+setup.rmd(local.env=environment())
+```
+`r hl()$basefontsize()`
+`r hl()$style()`
+
+
+## Discrete Distributions
+
+### Bernoulli Distribution
+
+A r.v. X is said have a *Bernoulli* distribution with success parameter p if P(X=0)=1-p and P(X=1)=p.
+
+Note: often you see q = 1-p used
+
+Shorthand: $X \sim Ber(p)$
+
+we already saw that then EX = p and Var(X) = pq
+
+### Binomial Distribution
+
+Say X~1~, ... , X~n~ are iid Ber(p) then 
+
+$$
+Y = \sum_{i-1}^n X_i
+$$
+is said to have a *Binomial* distribution with parameters n and p. We have
+
+$$
+Y \sim Bin(n, p) \\
+P(Y=k) = \begin{pmatrix} n \\ k \end{pmatrix}p^k(1-p)^{n-k}, k=0,..,n \\
+E[Y] = np \\
+Var[Y] = np(1-p)
+$$
+
+####**Example** 
+A company wants to hire 5 new employees. From previous experience they know that about 1 in 10 applicants are suitable for the jobs. What is the probability that if they interview 20 applicants they will be able to fill those 5 positions?
+
+Consider each interview a "trial" with the only two possible outcomes: 
+"success" (can be hired) or "failure" (not suitable). 
+
+Assumptions:  
+
+1. "success probability" is the same for all applicants (as long as we know nothing else about them this is ok.)
+
+2. trials are independent (depends somewhat on the setup of the interviews but should be ok)
+
+then if we let Y = "\#number of suitable applicants in the group of 20" we have $Y \sim B(20, 0.1)$ and 
+
+$$
+P(Y \ge 5)=1-P(Y\le4)
+$$
+```{r}
+1-pbinom(4, 20, 0.1)
+```
+
+### Geometric Distribution
+
+Say X~1~, X~2~, .. are iid Ber(p) and let Y be the number of trials needed until the first success. Then Y is said to have a *geometric* distribution with rate p, $Y\sim G(p)$, and we have
+
+$$
+Y \sim G(p) \\
+P(Y=k) = p(1-p)^{k-1}, k=1,2,.. \\
+E[Y] = 1/p \\
+Var[Y] = (1-p)/p^2
+$$
+
+####**Example**  
+(same as above) How many applicants will the company need to interview to be 90\% sure to be able to fill at least one of the five positions? 
+
+if we let Y be the number of trials until the first success (= an applicant is suitable) we have $Y\sim G(0.1)$. Then
+
+$$
+\begin{aligned}
+&0.9=P(Y \le n)= \\
+&\sum_1^n p(1-p)^{k-1}=\\
+&p\sum_0^{n-1} (1-p)^k=\\
+&p \frac{1-(1-p)^n}{1-(1-p)}=\\
+&1-(1-p)^n \\
+&(1-p)^n=0.1\\
+&n\log (1-p)=\log (0.1)\\
+&n=\frac{\log (0.1)}{\log (1-p)}=\\
+&\frac{\log (0.1)}{\log (1-0.1)}=21.8
+\end{aligned}
+$$
+
+
+```{r}
+qgeom(0.9, 0.1) + 1
+```
+
+**Note** The command geom in R is for a r.v. $Y* = Y-1$ (the number of failures until the first success), that is it takes values 0,1, ... instead of 1,2,.. and $P(Y*=k)=P(Y=k+1)$. 
+
+### Negative Binomial Distribution
+
+Despite the different name this is actually a generalization of the geometric, namely where Y is the number of trials needed until the r^th^ success.
+
+$$
+Y \sim NB(r,p) \\
+P(Y=k) =  \begin{pmatrix} k-1 \\ r-1 \end{pmatrix}p^r(1-p)^{k-r},
+k=r, r+1,..\\
+E[Y] = r/p \\
+Var[Y] = r(1-p)/p^2
+$$
+
+**Note** as with the geometric the R function nbinom uses a slightly different parametrization, it is for a r.v. $Y* = Y-r$.
+
+####**Example**  
+(same as above) How many applicants will the company need to interview to be 90\% sure to be able to fill all of the five positions? 
+
+if we let Y be the number of trials until the 5^th^ success we have $Y\sim NB(0.1, 5)$. Then 
+
+```{r}
+qnbinom(0.9, 5, 0.1) + 5
+```
+
+(Note: it is not $5*20=100$!)
+
+### Hypergeometric Distribution
+
+Consider an urn containing N+M balls, of which N are white and M are black. If a sample of size n is chosen at random and if Y is the number of white balls chosen, then Y has a hypergeometric distribution with paramaters (n,N,M).
+
+$$
+Y \sim HG(n,N,M) \\
+P(Y=k) =  \begin{pmatrix} N \\ k \end{pmatrix}
+\begin{pmatrix} M \\ n-k \end{pmatrix}/ \begin{pmatrix} N+M \\ n \end{pmatrix}, k=0,..,n
+\\
+E[Y] = \frac{nN}{N+M} \\
+Var[Y] = \frac{nN}{(N+M)^2}\left( 1-\frac{n-1}{N+M-1} \right)
+$$
+
+####**Example**  
+say our company has a pool of 100 candidates for the job, 10 of whom are suitable for hiring. If they interview 50 of the 100, what is the probability that they will fill the 5 positions?
+
+Here $Y \sim HG(50, 10, 90)$ and so 
+$$
+P(Y \ge5) = 1- P(Y \le 4) 
+$$
+```{r}
+1-phyper(4, 10, 90, 50)
+```
+
+Note: the difference between the binomial and the hypergeometric distribution is that here we draw the balls **without repetition**. Of course, if n is small compared to N+M the probability of drawing the same ball twice is (almost) 0, so then the two distributions give the same answer.
+
+####**Example**  
+using the binomial distribution for our  example  we would have found 
+```{r}
+1-pbinom(4, 50, 0.1)
+```
+
+quite different from the hypergeometric. On the other hand if our candidate pool had 1000 applicants, 100 of whom are suitable we would have found 
+```{r}
+1-phyper(4, 100, 900, 50)
+```
+
+### Poisson Distribution
+
+A random variable X is said to have a Poisson distribution with rate $\lambda$ ($X \sim \text{Pois}(\lambda)$)if
+$$
+P(X=k) = \frac{\lambda^x}{x!}e^{-\lambda}, k=0,1,2,.. \\
+E[X] = \lambda \\
+Var[X] = \lambda
+$$
+
+One way to visualize the Poisson distribution is as follows say $X \sim B(n,p)$ such that n is large and p is small. That is the number of trials is large but the success probability is small. Then X is approximately Poisson with rate $\lambda = np$.
+
+####**Example** 
+say you drive from Mayaguez to San Juan. Assume that the probability that on one kilometer of highway there is a police car checking the speed is 0.04. What is the probability that you will encounter at least 3 police cars on your drive?
+
+If we assume that the police cars appear independently (?) then X = # of police cars $\sim B(180, 0.04)$, so 
+
+$P(X \ge 3 ) = 1 - P( X \le 2) =$ 
+```{r}
+1-pbinom(2,180,0.04)
+```
+
+One the other hand X is also approximately $P(180*0.04)$ and so  $P(X \ge 3) =$ 
+```{r}
+1-ppois(2, 180*0.04)
+```
