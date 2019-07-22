@@ -7,7 +7,7 @@ output:
     fig_caption: no
 ---
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-source("R/setup.rmd.R", local=TRUE)
+source("../R/setup.rmd.R", local=TRUE)
 setup.rmd(local.env=environment())
 ```
 `r hl()$basefontsize()`

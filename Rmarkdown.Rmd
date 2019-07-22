@@ -6,16 +6,15 @@ output:
   pdf_document:
     fig_caption: no
 ---
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-source("R/setup.rmd.R", local=TRUE)
+source("../R/setup.rmd.R", local=TRUE)
 setup.rmd(local.env=environment())
 ```
 `r hl()$basefontsize()`
 `r hl()$style()`
 
-## R Markdown, HTML and Latex
-
-### R Markdown
+##  R Markdown
 
 R Markdown is a program for making dynamic documents with R. An R Markdown document is written in *markdown*, an easy-to-write plain text format with the file extension .Rmd. It can contain chunks of embedded R code. It has a number of great features:
 
@@ -25,7 +24,7 @@ R Markdown is a program for making dynamic documents with R. An R Markdown docum
 
 In recent years I (along with many others) who work a lot with R have made Rmarkdown the basic way to work with R. So when I work on a new project I immediately start a corresponding R markdown document. 
 
-`r hl()$hr()`
+### Get Started
 
 to start writing an R Markdown document open RStudio, File > New File > R Markdown. You can type in the title and some other things.
 
@@ -38,20 +37,19 @@ date: "April 1, 2018"
 output: html_document  
 \-\-\-
 
-This follows a syntax called YAML (also used by other programs). There are other things that can be put here as well, or you can erase all of it.
+This follows a syntax called YAML (also used by other programs). Everything between the three dashes (which are needed) is YAML code. There are other things that can be put here as well, or you can erase all of it.
 
-YAML stands for *Yet Another Markup Language*. It has become a standard for many computer languages to describe different configurations. For details go to [yaml.org](http://yaml.org)
+YAML stands for Yet Another Markup Language. It has become a standard for many computer languages to describe different configurations. For details go to [yaml.org](http://yaml.org).
 
 Then there is other stuff you should erase. Next File > Save. Give the document a name with the extension .Rmd
 
+I have a number of things that I need in (almost) all of my Rmd files, and I am to lazy to erase the stuff that the default starting document comes with. So I have a file called blank.Rmd which already has everything as I (usually) want it. All I need to do is rename it and put it in the right folder. 
+
 ### Basic R Markdown Syntax
 
-for a list of the basic syntax go to
+Markdown has simple keyboard shortcuts for many basic editing features. For example, \#, \#\#, \#\#\# are for chapter and  section headers. Subscripts are done with beginning and ending \~, so for X~1~ you need to type X\~1\~. For superscripts use X\^1\^.
 
-[https://rmarkdown.rstudio.com/articles_intro.html](https://rmarkdown.rstudio.com/articles_intro.html) 
-
-or to 
-
+For a complete list of the basic syntax go to [https://rmarkdown.rstudio.com/articles_intro.html](https://rmarkdown.rstudio.com/articles_intro.html) or to 
 [https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
 
 
@@ -59,24 +57,23 @@ or to
 
 There are two ways to include code chunks (yes, that's what they are called!) into an R Markdown document:
 
-####  **stand alone code**
+a.  stand alone code
 
 simultaneously enter CTRL-ALT-i and you will see this:
 
 
-\```{r}
+\`\`\`\{r\}
 
-\```
+\`\`\`
 
-Here ` is the *backtick*, on most keyboards on the key in
-the upper left below Esc.
+Here \` is a back tick, on Windows keyboards found on the upper left key, below \~.
 
 you can now enter any R code you like:
 
-\```{r}  
+\`\`\`{r}  
 x <- rnorm(10)  
 mean(x)  
-\```
+\`\`\`
 
 which will appear in the final document as
 
@@ -88,41 +85,29 @@ mean(x)
 Actually, it will be like this:
 
 ```{r}
-x <- rnorm(10)
+x<-rnorm(10)
 mean(x)
 ```
 
 so we can see the result of the R calculation as well. The reason it didn't appear like this before was that I added the argument eval=FALSE:
 
-\```{r eval=FALSE}  
-x <- rnorm(10)  
-mean(x)  
-\```
+\`\`\`\{r eval=FALSE\}
 
-which keeps the code chunk from actually executing (aka *eval*uating). This is useful if the code takes along time to run, or if you want to show code that is actually faulty, or ...
+which keeps the code chunk from actually executing (aka *eval*uating). This is useful if the code takes along time to run, or if you want to show code that is actually faulty, or for any number of other reasons.
 
-there are a number of useful arguments:
+there are several useful arguments:
 
 -  eval=FALSE  (shows but doesn't run the code)  
+-  eval=2:5 (shows all the code but only runs lines 2 to 5)
 -  echo=FALSE  (the code chunk is run but does not appear in the document)  
+-  echo=2:5 (shows only code on lines 2 to 5)  
 -  warning=FALSE  (warnings are not shown)  
 -  message=FALSE (messages are not shown)  
 -  cache=TRUE  (code is run only if there has been a change, useful for lengthy calculations)  
--  error=TRUE  (if there are errors in the code R normally terminates the parsing (executing) of the markdown document. With this argument it will ignore the error, which helps with debugging)  
+-  error=TRUE  (if there are errors in the code R normal terminates the parsing (executing) of the markdown document. With this argument it will ignore the error, which helps with debugging)  
+-  engine='Rcpp' (to include C++ code)
 
-
-####  **inline code** 
-
-here is a bit of text:
-
-... and so the mean was `r mean(x)`.
-
-Now I didn't type in the number, it was done with the chunk `` `r
-mean(x)` ``.
-
-`r hl()$hr()`
-
-Many of these options can be set globally, so they are active for the whole document. This is useful so you don't have to type them in every time. I have the following code chunk at the beginning of all my Rmd files:
+Many of these options can be set globally, so they are active for the whole document. This is useful so you don't have to type them in every time. I have the following code chunk at the beginning of all my Rmd:
 
 ```{r eval=FALSE}
 library(knitr)
@@ -134,11 +119,29 @@ We have already seen the message and warning options. The other one puts any fig
 
 If you have to override these defaults just include that in the specific chunk.
 
+
+b.  inline code. 
+
+here is a bit of text:
+
+and the mean was `r mean(x)`.
+
+Now I didn't type in the number, it was done with the chunk
+```{r, echo=FALSE}
+txt <-"\`r mean(x)\`"
+cat(txt)
+```
+
+
 ### Creating Output
 
 To create the output you have to "knit" the document. This is done by clicking on the *knit* button above. If you click on the arrow you can change the output format.
 
-### HTML vs Latex(Pdf)
+#### HTML, Latex(Pd), Word, PowerPoint etc.
+
+One of the great features of Markdown is that its syntax is independent of the eventual document format, so the same markdown file can immediately produce an HTML file of a pdf or or...
+
+In this class we will only use the HTML format, which is the easiest.
 
 In order to knit to pdf you have to install a latex interpreter. My suggestion is to use [Miktex](https://miktex.org/), but if you already have one installed it might work as well.
 
@@ -151,63 +154,121 @@ There are several advantages / disadvantages to each output format:
 
 I generally use HTML when writing a document, and use pdf only when everything else is done. There is one problem with this, namely that a document might well knit ok to HTML but give an error message when knitting to pdf. Moreover, those error messages are weird! Not even the line numbers are anywhere near right. So it's not a bad idea to also knit to pdf every now and then.
 
-As far as this class is concerned, we will use HTML exclusively.
-
 ### Tables
 
 One of the more complicated things to do in R Markdown is tables. For a nice illustration look at
 
 [https://stackoverflow.com/questions/19997242/simple-manual-rmarkdown-tables-that-look-good-in-html-pdf-and-docx](https://stackoverflow.com/questions/19997242/simple-manual-rmarkdown-tables-that-look-good-in-html-pdf-and-docx)
 
-My preference is to generate a data frame and the use the *kable.nice* function:
+My preference is to generate a data frame and the use the *kable* function:
 
 ```{r}
 Gender <- c("Male", "Male", "Female")
 Age <- c(20, 21, 19)
-kable.nice(data.frame(Gender, Age))
+df <- data.frame(Gender, Age)
+knitr::kable(df)
 ```
 
-probably with the argument echo=FALSE so only the table is visible.
+I have written my own kable routine which improves a bit on the basic version:
 
-### LATEX
+```{r}
+kable.nice <- function (x, 
+      do.row.names = TRUE, 
+      col.names = NA, font.size = 15) 
+{
+  library(tidyverse)
+  library(kableExtra)
+  kable(x, row.names = do.row.names, 
+        col.names = col.names) %>% 
+        kable_styling(bootstrap_options = "striped",
+            full_width = FALSE, 
+            font_size = font.size)
+}
+kable.nice(df)
+```
 
-You have not worked with latex (read: latek) before? Here is your chance to learn. It is well worthwhile, latex is the standard document word processor for science. And once you get used to it, it is WAY better and easier than (say) Word. 
+which I am sure you agree is nice! You can use it yourself, just copy paste the function code into an R chunk of your document.
 
-A nice list of common symbols is found on [https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols](https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols).
+It is also possible to use HTML code to make a table:
 
-
-#### **inline math**
-
-A LATEX expression always starts and ends with a \$ sign. So this line:
-
-The population mean is defined by $E[X] = \int_{-\infty}^{\infty} xf(x) dx$.
-
-was done with the code
-
-
-The population mean is defined by \$E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx\$.
-
-#### **displayed math**
-
-sometimes we want to highlight a piece of math:
-
-The population mean is defined by
-
-$$
-E[X] = \int_{-\infty}^{\infty} xf(x) dx    
-$$
-this is done with two dollar signs:
-```{r, echo=FALSE, comment=NA}
-txt <- c(" $$\n",
-         "E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx\n",
-          "$$"
-         )
+```{r echo=FALSE}
+txt <- c(" <table border=\"1\">\n",
+"<tr><th>Gender</th><th>Age</th></tr>\n",
+"<tr><td>Male</td><td>20</td></tr>\n",
+"<tr><td>Male</td><td>21</td></tr>\n",
+"<tr><td>Female</td><td>19</td></tr>\n",
+"</table>")
 cat(txt)
 ```
 
+It will look like this in HTML:
+
+<table border="1">
+<tr><th>Gender</th><th>Age</th></tr>
+<tr><td>Male</td><td>20</td></tr>
+<tr><td>Male</td><td>21</td></tr>
+<tr><td>Female</td><td>19</td></tr>
+</table>
+
+but won't look like anything in pdf. 
+
+The corresponding latex table will look good in pdf but not in HTML!
+
+So what do you do if you don't know yet what the output will be, or if you want your routine to produce nice output either way? The solution is this: the document can check what the output format is at run time, and then insert the corresponding code. This works as follows. Say we want to include some code to print a piece of text in red, say for highlighting it. Now in html we would need the code \<font color="red">, then the text and finally \</font> to get back to black. In latex however we need \\textcolor{red}{our text}. Here is a little routine that will do it:
+
+```{r}
+fontcolor <- function (txt) {
+  library(knitr)
+  output.format <- opts_knit$get("rmarkdown.pandoc.to")
+# this figures out what the output format is  
+  if(output.format == "latex") 
+    out <- paste0("\\textcolor{red}{", txt, "}")
+  else 
+    out <- paste0("<font color='red'>", txt, "</font>")
+  out
+}
+```
+
+and now if we have
+
+```{r, echo=FALSE}
+txt <- paste0("\`r fontcolor(\"this is in red\")\`")
+cat(txt)
+```
+
+it will appear as `r fontcolor("this is in red")` in either html or latex.
 
 
-#### **multiline math**
+### LATEX
+
+You have not worked with latex (read: latek) before? Here is your chance to learn. It is well worthwhile, latex is the standard document word processor for science. And once you get used to it is WAY better and easier than (say) Word. 
+
+Because latex code will generally display correctly in an html document but html will not in a latex document I suggest to stick as much as possible with latex.
+
+Latex has a HUGE list of symbols for just about anything. A nice list of common symbols is found on [https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols](https://artofproblemsolving.com/wiki/index.php/LaTeX:Symbols). Often when I need one I don't remember I just google it. For example, say I want to use the symbol for the real numbers: $\mathbf{R}$. So I google 
+"latex real numbers symbol", and the first document tells me the code is \\mathbf\{R\}!
+
+Latex code is usually used in two ways: as part of a sentence or as stand-alone. In the first case use a single dollar sign at the beginning and the end. For example the code
+
+We want to integrate the function 
+```
+$f(x)=\exp(-x^2)$
+```
+
+will display as
+
+We want to integrate the function 
+
+$f(x)=\exp(-x^2)$.
+
+**Exercise**
+
+Does anyone know how I displayed the code and not the formula the first time?
+
+`r hl()$hr()`
+The other way to display math in latex is via
+
+#### Multiline math
 
 say you want the following in your document:
 
@@ -220,7 +281,7 @@ $$
 
 for this to display correctly in HTML and PDF you need to use the format
 
-```{r, echo=FALSE, comment=NA}
+```{r, echo=FALSE}
 txt <- c(" $$\n",
          "\\begin{aligned}\n",
          "&E[X] = \\int_{-\\infty}^{\\infty} xf(x) dx=\\\\ \n",
@@ -231,7 +292,22 @@ txt <- c(" $$\n",
 cat(txt)
 ```
 
+so a multiline expression starts and ends with double dollar signs. 
 
+By default when you knit to pdf the intermediate latex file is deleted. If you want to keep it, maybe so you can change it in a latex editor, use the following in the YAML header:
 
+output:  
+&nbsp;&nbsp;pdf_document:  
+&nbsp;&nbsp;&nbsp;&nbsp;keep_tex: true
+
+notice the spaces before the text, they are needed!
+
+### snippets
+
+A *snippet* is a short piece of code that one uses quite often, and so it would be nice not to have to type it in every time. RStudio has a number of them pre-defined. Go to Tools > Global Options > Code > Edit Snippets.
+
+There are snippets for various languages, including R Markdown. To use a snippet, simply type the code and then Shift+Tab.
+
+You can even wright your own! For example, I have one called *mta* that has all the basics to start a multi-line latex math expression.
 
 

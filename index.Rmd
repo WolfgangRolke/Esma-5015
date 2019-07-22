@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-source("R/setup.rmd.R", local=TRUE)
+source("../R/setup.rmd.R", local=TRUE)
 setup.rmd(local.env=environment())
 ```
 `r hl()$basefontsize()`
@@ -17,7 +17,7 @@ setup.rmd(local.env=environment())
 
 # General Information
 
-0.1&nbsp;  [ESMA5015.pdf](ESMA5015.pdf) 
+0.1&nbsp;  [ESMA5015.pdf](ESMA5015.pdf)  
 0.2&nbsp;  [Syllabus](syl.html)  
 0.3&nbsp;  [Assignments](assign.html)  
 0.4&nbsp;  [Resma3.RData](http://academic.uprm.edu/wrolke/Resma3/Resma3.RData?Ver 3.2) (Ver 3.2)
